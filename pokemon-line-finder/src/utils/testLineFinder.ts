@@ -105,10 +105,10 @@ function runSingleTest(testCase: TestCase): TestResult {
   // Setup
   const { playerTeam, opponentTeam } = testCase.setup();
 
-  // Execute
+  // Execute - Enable debug mode for detailed output
   let lines: LineOfPlay[] = [];
   try {
-    lines = findLines(playerTeam, opponentTeam, DEFAULT_SEARCH_OPTIONS);
+    lines = findLines(playerTeam, opponentTeam, DEFAULT_SEARCH_OPTIONS, true); // Debug enabled
   } catch (error) {
     failures.push(`Exception thrown: ${error}`);
     return {
@@ -205,10 +205,23 @@ function runSingleTest(testCase: TestCase): TestResult {
           ? turn.opponentAction.moveName
           : `Switch to ${opponentTeam[turn.opponentAction.targetIndex!].species}`;
       console.log(`     Turn ${i + 1}: ${playerMove} vs ${opponentMove}`);
+      // Debug: Show risks for this turn
+      if (turn.risksInvolved && turn.risksInvolved.length > 0) {
+        console.log(`       Risks in turn ${i + 1}:`);
+        turn.risksInvolved.forEach((risk) => {
+          console.log(
+            `         - ${risk.type}: ${risk.description} (${risk.probability}% prob, ${risk.impact} impact)`,
+          );
+        });
+      }
     });
     console.log(
       `   Risk: ${bestLine.guaranteedSuccess ? "guaranteed" : "probabilistic"} (${bestLine.overallRisk})`,
     );
+    console.log(
+      `   RequiresCrits: ${bestLine.requiresCrits}, RequiresHits: ${bestLine.requiresHits}`,
+    );
+    console.log(`   Success Probability: ${bestLine.successProbability}%`);
   }
 
   return {
@@ -369,3 +382,8 @@ export const tests = {
   validateDamageCalculations,
   validateAILogic,
 };
+
+// Run tests when executed directly
+runLineFinderTests();
+validateDamageCalculations();
+validateAILogic();

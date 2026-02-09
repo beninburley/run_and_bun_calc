@@ -248,28 +248,66 @@ function searchLines(
   options: SearchOptions,
   foundLines: LineOfPlay[],
   visitedStates: Set<string>,
+  debugMode: boolean = false,
 ): void {
+  // Debug logging
+  if (debugMode) {
+    console.log(
+      `[Search] Depth ${searchState.depth}, Casualties: ${searchState.playerCasualties}`,
+    );
+    console.log(
+      `  Player: ${searchState.battleState.playerActive.species} (${searchState.battleState.playerActive.currentHp}/${searchState.battleState.playerActive.stats.hp} HP)`,
+    );
+    console.log(
+      `  Opponent: ${searchState.battleState.opponentActive.species} (${searchState.battleState.opponentActive.currentHp}/${searchState.battleState.opponentActive.stats.hp} HP)`,
+    );
+  }
+
   // Check pruning conditions
   const pruneCheck = shouldPrune(searchState, options);
   if (pruneCheck.prune) {
+    if (debugMode) {
+      console.log(`  [PRUNED] ${pruneCheck.reason}`);
+    }
     return;
   }
 
   // Check if battle is over
   const battleStatus = isBattleOver(searchState.battleState);
+  if (debugMode) {
+    console.log(
+      `  Battle over: ${battleStatus.isOver}, Winner: ${battleStatus.winner}`,
+    );
+  }
   if (battleStatus.isOver) {
     if (battleStatus.winner === "player") {
+      if (debugMode) {
+        console.log(
+          `  [VICTORY FOUND] Player wins in ${searchState.depth} turns!`,
+        );
+      }
       // Found a winning line!
       const lineRisk = evaluateLineRisk(searchState.actionsThisLine, options);
 
       // Filter based on risk preferences
       if (!options.allowCritDependence && lineRisk.requiresCrits) {
+        if (debugMode) {
+          console.log(`  [FILTERED] Requires crits`);
+        }
         return;
       }
       if (!options.allowAccuracyDependence && lineRisk.requiresHits) {
+        if (debugMode) {
+          console.log(`  [FILTERED] Requires accuracy hits`);
+        }
         return;
       }
       if (lineRisk.successProbability < options.minSuccessProbability) {
+        if (debugMode) {
+          console.log(
+            `  [FILTERED] Success probability ${lineRisk.successProbability}% < ${options.minSuccessProbability}%`,
+          );
+        }
         return;
       }
 
@@ -328,6 +366,37 @@ function searchLines(
     options,
   );
 
+  if (debugMode) {
+    console.log(
+      `  [Actions] Generated ${possibleActions.length} possible actions`,
+    );
+    if (possibleActions.length === 0) {
+      console.log(
+        `  [ERROR] No actions generated! Active mon: ${searchState.battleState.playerActive.species}`,
+      );
+      console.log(
+        `    Moves:`,
+        searchState.battleState.playerActive.moves.map(
+          (m, i) =>
+            `${m.name} (PP: ${searchState.battleState.playerActive.currentPP[i]})`,
+        ),
+      );
+      console.log(
+        `    Alive count: ${searchState.battleState.playerTeam.filter((p) => p.currentHp > 0).length}`,
+      );
+    } else {
+      possibleActions.forEach((action) => {
+        if (action.type === "move") {
+          console.log(
+            `    - ${action.moveName} (PP: ${searchState.battleState.playerActive.currentPP[action.moveIndex]})`,
+          );
+        } else if (action.type === "switch") {
+          console.log(`    - Switch to ${action.targetName}`);
+        }
+      });
+    }
+  }
+
   // Create state signature for deduplication
   const stateSignature = JSON.stringify({
     playerHP: searchState.battleState.playerActive.currentHp,
@@ -338,6 +407,9 @@ function searchLines(
   });
 
   if (visitedStates.has(stateSignature)) {
+    if (debugMode) {
+      console.log(`  [DUPLICATE STATE] Already visited this state`);
+    }
     return; // Already explored this state
   }
   visitedStates.add(stateSignature);
@@ -362,6 +434,19 @@ function searchLines(
   const beamWidth = 3;
   const topActions = scoredActions.slice(0, beamWidth);
 
+  if (debugMode && topActions.length > 0) {
+    console.log(`  [Beam] Exploring top ${topActions.length} actions:`);
+    topActions.forEach(({ action, score }) => {
+      const desc =
+        action.type === "move"
+          ? action.moveName
+          : action.type === "switch"
+            ? `Switch to ${action.targetName}`
+            : "Use item";
+      console.log(`    - ${desc} (score: ${score.toFixed(2)})`);
+    });
+  }
+
   for (const { outcome } of topActions) {
     // Stop if we've found enough lines
     if (foundLines.length >= options.maxLines) {
@@ -379,7 +464,7 @@ function searchLines(
       playerCasualties: newCasualties,
     };
 
-    searchLines(newSearchState, options, foundLines, visitedStates);
+    searchLines(newSearchState, options, foundLines, visitedStates, debugMode);
   }
 }
 
@@ -390,6 +475,7 @@ export function findLines(
   playerTeam: PokemonInstance[],
   opponentTeam: PokemonInstance[],
   options: SearchOptions = DEFAULT_SEARCH_OPTIONS,
+  debugMode: boolean = false,
 ): LineOfPlay[] {
   const initialState = createBattleState(playerTeam, opponentTeam);
 
@@ -404,13 +490,16 @@ export function findLines(
   const foundLines: LineOfPlay[] = [];
   const visitedStates = new Set<string>();
 
-  console.log("Starting line search...");
-  console.log(`Player team: ${playerTeam.map((p) => p.species).join(", ")}`);
-  console.log(
-    `Opponent team: ${opponentTeam.map((p) => p.species).join(", ")}`,
-  );
+  if (debugMode) {
+    console.log("\n[Line Finder] Starting line search...");
+    console.log(`Player team: ${playerTeam.map((p) => p.species).join(", ")}`);
+    console.log(
+      `Opponent team: ${opponentTeam.map((p) => p.species).join(", ")}`,
+    );
+    console.log("Search options:", options);
+  }
 
-  searchLines(searchState, options, foundLines, visitedStates);
+  searchLines(searchState, options, foundLines, visitedStates, debugMode);
 
   console.log(`Found ${foundLines.length} viable lines`);
 

@@ -241,15 +241,9 @@ function processMove(
     });
   }
 
-  // Add crit risk if relevant
-  if (damageCalc.critChance > 0 && damageCalc.critChance < 100) {
-    risks.push({
-      type: "crit",
-      description: `${move.name} could crit (${damageCalc.critChance.toFixed(1)}%)`,
-      probability: damageCalc.critChance,
-      impact: "moderate",
-    });
-  }
+  // Note: We don't track crits as a risk for PLAYER moves because crits are BENEFICIAL
+  // (they deal more damage, helping us win). Crits would only be a risk if we REQUIRED
+  // one to win, which would be tracked as requiresCrits in the line analysis.
 
   const defenderFainted = actualDamage >= defender.currentHp;
 
@@ -350,7 +344,11 @@ export function simulateTurn(
         attacker.currentHp - moveResult.attackerRecoil,
       );
 
-      risks.push(...moveResult.risks);
+      // Only track risks for PLAYER actions, not opponent actions
+      // (opponent missing is good for us, not a risk!)
+      if (isPlayer) {
+        risks.push(...moveResult.risks);
+      }
 
       if (isPlayer) {
         playerDamageDealt = calculateFullDamage(
@@ -418,6 +416,23 @@ export function simulateTurn(
         true,
       );
     }
+  }
+
+  // CRITICAL FIX: Sync active Pokemon back to team arrays
+  // After cloning, active Pokemon are separate objects from team array entries
+  // We need to update the team arrays with the modified active Pokemon
+  const playerActiveIndex = newState.playerTeam.findIndex(
+    (p) => p.species === newState.playerActive.species,
+  );
+  if (playerActiveIndex !== -1) {
+    newState.playerTeam[playerActiveIndex] = newState.playerActive;
+  }
+
+  const opponentActiveIndex = newState.opponentTeam.findIndex(
+    (p) => p.species === newState.opponentActive.species,
+  );
+  if (opponentActiveIndex !== -1) {
+    newState.opponentTeam[opponentActiveIndex] = newState.opponentActive;
   }
 
   // Update field effects (decrement turn counters)
