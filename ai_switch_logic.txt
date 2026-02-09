@@ -1,0 +1,11 @@
+Score	Condition
++5	AI's Pokémon is faster than the player's and OHKO's it.
++4	AI's Pokémon is slower than the player's but OHKO's it and is not OHKO'd.
++3	AI's Pokémon is faster than the player's and deals more damage than it takes (damage is considered in % and not raw numbers).
++2	AI's Pokémon is slower than the player's and deals more damage than it takes (damage is considered in % and not raw numbers).
++1	AI's Pokémon is faster than the player's.
+0	Default.
+-1	AI's Pokémon is slower than the player's and is OHKO'd.
+	Special Cases
++2	Ditto.
++2	Wynaut and Wobbuffet, as long as they are not slower than the player's Pokémon and OHKO'd.
