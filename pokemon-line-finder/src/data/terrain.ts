@@ -229,7 +229,11 @@ export function getTerrainDefenseMultiplier(
   pokemon: PokemonInstance,
   terrain: Terrain,
 ): number {
-  if (terrain === "grassy" && pokemon.ability === "Grass Pelt" && isGrounded(pokemon)) {
+  if (
+    terrain === "grassy" &&
+    pokemon.ability === "Grass Pelt" &&
+    isGrounded(pokemon)
+  ) {
     return 1.5;
   }
 

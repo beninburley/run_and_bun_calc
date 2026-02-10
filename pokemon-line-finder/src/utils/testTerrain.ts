@@ -64,7 +64,10 @@ export function testElectricTerrain(): { passed: boolean; output: string } {
 /**
  * Test 2: Grassy Terrain heals 1/16 HP per turn for grounded Pokemon
  */
-export function testGrassyTerrainHealing(): { passed: boolean; output: string } {
+export function testGrassyTerrainHealing(): {
+  passed: boolean;
+  output: string;
+} {
   console.log("\n=== TEST: Grassy Terrain Healing ===");
 
   const venusaur = createTestPokemon(
@@ -102,8 +105,7 @@ export function testGrassyTerrainHealing(): { passed: boolean; output: string } 
   );
 
   const expectedHealing = Math.floor(venusaur.stats.hp / 16);
-  const actualHealing =
-    turn1.resultingState.playerActive.currentHp - initialHp;
+  const actualHealing = turn1.resultingState.playerActive.currentHp - initialHp;
 
   console.log("  Initial HP:", initialHp);
   console.log("  HP after turn:", turn1.resultingState.playerActive.currentHp);
@@ -111,7 +113,8 @@ export function testGrassyTerrainHealing(): { passed: boolean; output: string } 
   console.log("  Actual healing:", actualHealing);
 
   const passed =
-    turn1.resultingState.terrain === "grassy" && actualHealing === expectedHealing;
+    turn1.resultingState.terrain === "grassy" &&
+    actualHealing === expectedHealing;
 
   if (passed) {
     console.log("✅ Grassy Terrain correctly healed 1/16 max HP");
@@ -125,7 +128,10 @@ export function testGrassyTerrainHealing(): { passed: boolean; output: string } 
 /**
  * Test 3: Psychic Terrain blocks priority moves against grounded Pokemon
  */
-export function testPsychicTerrainPriority(): { passed: boolean; output: string } {
+export function testPsychicTerrainPriority(): {
+  passed: boolean;
+  output: string;
+} {
   console.log("\n=== TEST: Psychic Terrain Priority Block ===");
 
   const alakazam = createTestPokemon(
@@ -256,7 +262,10 @@ export function runTerrainTests(): {
   const results = [];
 
   results.push({ name: "Electric Terrain", ...testElectricTerrain() });
-  results.push({ name: "Grassy Terrain Healing", ...testGrassyTerrainHealing() });
+  results.push({
+    name: "Grassy Terrain Healing",
+    ...testGrassyTerrainHealing(),
+  });
   results.push({
     name: "Psychic Terrain Priority",
     ...testPsychicTerrainPriority(),
