@@ -228,9 +228,9 @@ function App() {
       <h1>Pokémon Run & Bun - Line Finder</h1>
       <p>Battle strategy calculator for Nuzlocke runs</p>
 
-      <div style={{ margin: "20px 0" }}>
+      <div className="mt-20 mb-20">
         <h2>Development Status</h2>
-        <ul style={{ textAlign: "left", maxWidth: "600px", margin: "0 auto" }}>
+        <ul className="status-list">
           <li>✅ Project setup complete</li>
           <li>✅ Type definitions</li>
           <li>✅ Damage calculator</li>
@@ -242,49 +242,22 @@ function App() {
       </div>
 
       {/* Tabs */}
-      <div style={{ margin: "20px 0", borderBottom: "2px solid #ddd" }}>
+      <div className="tabs">
         <button
           onClick={() => setActiveTab("scenarios")}
-          style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            cursor: "pointer",
-            backgroundColor: activeTab === "scenarios" ? "#646cff" : "#f5f5f5",
-            color: activeTab === "scenarios" ? "white" : "#333",
-            border: "none",
-            borderRadius: "4px 4px 0 0",
-            marginRight: "5px",
-          }}
+          className={`tab-button ${activeTab === "scenarios" ? "active" : ""}`}
         >
           Battle Scenarios
         </button>
         <button
           onClick={() => setActiveTab("tests")}
-          style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            cursor: "pointer",
-            backgroundColor: activeTab === "tests" ? "#646cff" : "#f5f5f5",
-            color: activeTab === "tests" ? "white" : "#333",
-            border: "none",
-            borderRadius: "4px 4px 0 0",
-            marginRight: "5px",
-          }}
+          className={`tab-button ${activeTab === "tests" ? "active" : ""}`}
         >
           Run Tests
         </button>
         <button
           onClick={() => setActiveTab("teambuilder")}
-          style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            cursor: "pointer",
-            backgroundColor:
-              activeTab === "teambuilder" ? "#646cff" : "#f5f5f5",
-            color: activeTab === "teambuilder" ? "white" : "#333",
-            border: "none",
-            borderRadius: "4px 4px 0 0",
-          }}
+          className={`tab-button ${activeTab === "teambuilder" ? "active" : ""}`}
         >
           Team Builder
         </button>
@@ -292,36 +265,20 @@ function App() {
 
       {activeTab === "scenarios" && (
         <>
-          <div
-            style={{
-              margin: "30px 0",
-              padding: "20px",
-              background: "#f5f5f5",
-              borderRadius: "8px",
-            }}
-          >
+          <div className="panel">
             <h2>Test Battle Scenarios</h2>
 
             {/* Trainer Selection */}
-            <div
-              style={{
-                marginBottom: "30px",
-                padding: "20px",
-                background: "white",
-                borderRadius: "8px",
-              }}
-            >
+            <div className="card mb-30">
               <h3>Opponent Trainer Database</h3>
-              <p style={{ fontSize: "14px", color: "#666" }}>
+              <p className="text-small text-secondary">
                 Select a trainer to battle against, or use the mock battles
                 below
               </p>
 
               {/* Category Selection */}
-              <div style={{ marginBottom: "15px" }}>
-                <label style={{ fontWeight: "bold", marginRight: "10px" }}>
-                  Category:
-                </label>
+              <div className="form-group">
+                <label className="form-label">Category:</label>
                 {trainerCategories.map((category) => (
                   <label key={category.name} style={{ marginRight: "15px" }}>
                     <input
@@ -332,7 +289,6 @@ function App() {
                         setSelectedCategory(e.target.value);
                         setSelectedTrainer(null);
                       }}
-                      style={{ marginRight: "5px" }}
                     />
                     {category.name}
                   </label>
@@ -340,27 +296,12 @@ function App() {
               </div>
 
               {/* Trainer Selection */}
-              <div style={{ marginBottom: "15px" }}>
-                <label
-                  style={{
-                    fontWeight: "bold",
-                    marginRight: "10px",
-                    display: "block",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Select Trainer:
-                </label>
+              <div className="form-group">
+                <label className="form-label">Select Trainer:</label>
                 <select
                   value={selectedTrainer || ""}
                   onChange={(e) => setSelectedTrainer(e.target.value || null)}
-                  style={{
-                    padding: "8px",
-                    fontSize: "14px",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    minWidth: "250px",
-                  }}
+                  className="form-select"
                 >
                   <option value="">-- Choose a trainer --</option>
                   {trainerCategories
@@ -380,40 +321,29 @@ function App() {
                   if (!trainer) return null;
 
                   return (
-                    <div
-                      style={{
-                        padding: "15px",
-                        background: "#f9f9f9",
-                        borderRadius: "4px",
-                        marginTop: "15px",
-                      }}
-                    >
-                      <h4 style={{ marginTop: 0 }}>
+                    <div className="card card-highlight mt-15">
+                      <h4 className="mt-0">
                         {trainer.name} - {trainer.title}
                       </h4>
-                      <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                      <p className="text-small mb-5">
                         <strong>Location:</strong> {trainer.location}
                       </p>
-                      <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                      <p className="text-small mb-5">
                         <strong>Difficulty:</strong>{" "}
                         {"★".repeat(trainer.difficulty)}
                         {"☆".repeat(5 - trainer.difficulty)}
                       </p>
                       {trainer.notes && (
                         <p
-                          style={{
-                            margin: "10px 0",
-                            fontSize: "13px",
-                            fontStyle: "italic",
-                            color: "#555",
-                          }}
+                          className="text-small text-muted mt-10"
+                          style={{ fontStyle: "italic" }}
                         >
                           💡 {trainer.notes}
                         </p>
                       )}
-                      <div style={{ marginTop: "10px" }}>
+                      <div className="mt-10">
                         <strong>Team ({trainer.team.length} Pokemon):</strong>
-                        <ul style={{ marginTop: "5px", fontSize: "13px" }}>
+                        <ul className="text-small mt-5">
                           {trainer.team.map((pokemon, i) => (
                             <li key={i}>
                               Lv.{pokemon.level} {pokemon.species} -{" "}
@@ -428,9 +358,9 @@ function App() {
                 })()}
             </div>
 
-            <h3 style={{ marginTop: "30px" }}>Mock Battles (For Testing)</h3>
-            <div style={{ margin: "20px 0" }}>
-              <label style={{ marginRight: "10px" }}>
+            <h3 className="mt-30">Mock Battles (For Testing)</h3>
+            <div className="radio-group">
+              <label>
                 <input
                   type="radio"
                   value="battle1"
@@ -457,16 +387,8 @@ function App() {
             <button
               onClick={runLineFinder}
               disabled={isSearching}
-              style={{
-                padding: "10px 20px",
-                fontSize: "16px",
-                cursor: isSearching ? "wait" : "pointer",
-                backgroundColor: isSearching ? "#ccc" : "#646cff",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                marginTop: "10px",
-              }}
+              className="btn btn-primary mt-10"
+              style={{ cursor: isSearching ? "wait" : "pointer" }}
             >
               {isSearching
                 ? "Searching..."
@@ -476,7 +398,7 @@ function App() {
             </button>
 
             {currentTeam.length === 0 && (
-              <p style={{ marginTop: "10px", fontSize: "13px", color: "#666" }}>
+              <p className="text-small text-secondary mt-10">
                 💡 No team loaded. Using mock player team. Import a team in the
                 Team Builder tab to use your own team.
               </p>
@@ -485,8 +407,8 @@ function App() {
 
           {lines.length > 0 && (
             <div
+              className="mt-30"
               style={{
-                margin: "30px 0",
                 textAlign: "left",
                 maxWidth: "800px",
                 marginLeft: "auto",
@@ -500,14 +422,11 @@ function App() {
               {lines.map((line, _index) => (
                 <div
                   key={line.id}
+                  className="line-item"
                   style={{
-                    margin: "20px 0",
-                    padding: "15px",
-                    border: "1px solid #ccc",
-                    borderRadius: "8px",
                     backgroundColor: line.guaranteedSuccess
-                      ? "#e8f5e9"
-                      : "#fff3e0",
+                      ? "var(--color-success-bg)"
+                      : "var(--color-warning-bg)",
                   }}
                 >
                   <h3>
@@ -517,7 +436,7 @@ function App() {
                       ` (${line.successProbability.toFixed(1)}% success)`}
                   </h3>
 
-                  <div style={{ marginBottom: "10px" }}>
+                  <div className="mb-10">
                     <strong>Risk Level:</strong>{" "}
                     {line.overallRisk.toUpperCase()}
                     {" | "}
@@ -530,21 +449,21 @@ function App() {
                   </div>
 
                   {line.requiresCrits && (
-                    <div style={{ color: "#f57c00", marginBottom: "5px" }}>
+                    <div className="line-item-risk mb-5">
                       ⚠️ Requires critical hits
                     </div>
                   )}
                   {line.requiresHits && (
-                    <div style={{ color: "#f57c00", marginBottom: "5px" }}>
+                    <div className="line-item-risk mb-5">
                       ⚠️ Requires moves to hit (accuracy dependent)
                     </div>
                   )}
 
-                  <div style={{ marginTop: "10px" }}>
+                  <div className="mt-10">
                     <strong>Strategy:</strong>
-                    <ol style={{ marginTop: "5px" }}>
+                    <ol className="mt-5">
                       {line.explanation.map((step, i) => (
-                        <li key={i} style={{ marginBottom: "5px" }}>
+                        <li key={i} className="mb-5">
                           {step}
                         </li>
                       ))}
@@ -552,16 +471,9 @@ function App() {
                   </div>
 
                   {line.keyRisks.length > 0 && (
-                    <div
-                      style={{
-                        marginTop: "10px",
-                        padding: "10px",
-                        backgroundColor: "#fff",
-                        borderRadius: "4px",
-                      }}
-                    >
+                    <div className="card-highlight mt-10">
                       <strong>Key Risks:</strong>
-                      <ul style={{ marginTop: "5px" }}>
+                      <ul className="mt-5">
                         {line.keyRisks.map((risk, i) => (
                           <li key={i}>
                             {risk.description} ({risk.probability.toFixed(1)}% -{" "}
@@ -577,7 +489,7 @@ function App() {
           )}
 
           {!isSearching && lines.length === 0 && (
-            <div style={{ margin: "20px 0", color: "#666" }}>
+            <div className="text-secondary mt-20">
               <p>Click "Find Battle Lines" to calculate optimal strategies</p>
             </div>
           )}
@@ -585,81 +497,30 @@ function App() {
       )}
 
       {activeTab === "tests" && (
-        <div
-          style={{
-            margin: "30px 0",
-            padding: "20px",
-            background: "#f5f5f5",
-            borderRadius: "8px",
-          }}
-        >
+        <div className="panel">
           <h2>Line Finder Tests</h2>
           <p>Validate that the line-finder produces expected results</p>
 
-          <button
-            onClick={runTests}
-            style={{
-              padding: "10px 20px",
-              fontSize: "16px",
-              cursor: "pointer",
-              backgroundColor: "#646cff",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              marginTop: "10px",
-            }}
-          >
+          <button onClick={runTests} className="btn btn-primary mt-10">
             Run All Tests
           </button>
 
-          {testOutput && (
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "15px",
-                backgroundColor: "#1e1e1e",
-                color: "#d4d4d4",
-                borderRadius: "4px",
-                textAlign: "left",
-                fontFamily: "monospace",
-                fontSize: "13px",
-                whiteSpace: "pre-wrap",
-                maxHeight: "600px",
-                overflowY: "auto",
-              }}
-            >
-              {testOutput}
-            </div>
-          )}
+          {testOutput && <div className="test-output">{testOutput}</div>}
         </div>
       )}
 
       {activeTab === "teambuilder" && (
-        <div
-          style={{
-            margin: "30px 0",
-            padding: "20px",
-            background: "#f5f5f5",
-            borderRadius: "8px",
-          }}
-        >
+        <div className="panel">
           <h2>Team Builder & Import/Export</h2>
 
           {/* Team Import/Export Section */}
-          <div
-            style={{
-              marginBottom: "30px",
-              padding: "20px",
-              background: "white",
-              borderRadius: "8px",
-            }}
-          >
+          <div className="card mb-30">
             <h3>Team Management</h3>
 
-            <div style={{ marginBottom: "20px" }}>
+            <div className="mb-20">
               <strong>Current Team:</strong>{" "}
               {currentTeam.length === 0 ? (
-                <span style={{ color: "#999" }}>No team loaded</span>
+                <span className="text-muted">No team loaded</span>
               ) : (
                 <span>
                   {currentTeam.map((p) => p.species).join(", ")} (
@@ -670,24 +531,16 @@ function App() {
 
             <button
               onClick={loadMockTeam}
-              style={{
-                padding: "8px 16px",
-                fontSize: "14px",
-                cursor: "pointer",
-                backgroundColor: "#646cff",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                marginRight: "10px",
-              }}
+              className="btn btn-primary"
+              style={{ marginRight: "10px" }}
             >
               Load Mock Team (Charizard)
             </button>
 
             {/* Import Section */}
-            <div style={{ marginTop: "20px", marginBottom: "20px" }}>
+            <div className="mt-20 mb-20">
               <h4>Import Team</h4>
-              <p style={{ fontSize: "14px", color: "#666" }}>
+              <p className="text-small text-secondary">
                 Paste team data in JSON or Pokemon Showdown format
               </p>
 
@@ -695,29 +548,17 @@ function App() {
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder="Paste team data here..."
-                style={{
-                  width: "100%",
-                  height: "150px",
-                  padding: "10px",
-                  fontSize: "14px",
-                  fontFamily: "monospace",
-                  borderRadius: "4px",
-                  border: "1px solid #ccc",
-                  marginBottom: "10px",
-                }}
+                className="form-textarea mb-10"
+                style={{ height: "150px", fontFamily: "monospace" }}
               />
 
               <button
                 onClick={handleImportTeam}
                 disabled={!importText.trim()}
+                className="btn"
                 style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
                   cursor: importText.trim() ? "pointer" : "not-allowed",
                   backgroundColor: importText.trim() ? "#4caf50" : "#ccc",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
                 }}
               >
                 Import Team
@@ -725,17 +566,12 @@ function App() {
 
               {importStatus && (
                 <div
-                  style={{
-                    marginTop: "10px",
-                    padding: "10px",
-                    background: importStatus.includes("❌")
-                      ? "#ffebee"
-                      : "#e8f5e9",
-                    color: importStatus.includes("❌") ? "#c62828" : "#2e7d32",
-                    borderRadius: "4px",
-                    fontSize: "14px",
-                    whiteSpace: "pre-wrap",
-                  }}
+                  className={`status-message mt-10 ${
+                    importStatus.includes("❌")
+                      ? "status-error"
+                      : "status-success"
+                  }`}
+                  style={{ whiteSpace: "pre-wrap" }}
                 >
                   {importStatus}
                 </div>
@@ -743,20 +579,19 @@ function App() {
             </div>
 
             {/* Export Section */}
-            <div style={{ marginTop: "20px" }}>
+            <div className="mt-20">
               <h4>Export Team</h4>
-              <p style={{ fontSize: "14px", color: "#666" }}>
+              <p className="text-small text-secondary">
                 Export your team to share or save
               </p>
 
-              <div style={{ marginBottom: "10px" }}>
-                <label style={{ marginRight: "20px" }}>
+              <div className="radio-group mb-10">
+                <label>
                   <input
                     type="radio"
                     value="showdown"
                     checked={exportFormat === "showdown"}
                     onChange={() => setExportFormat("showdown")}
-                    style={{ marginRight: "5px" }}
                   />
                   Pokemon Showdown Format
                 </label>
@@ -766,7 +601,6 @@ function App() {
                     value="json"
                     checked={exportFormat === "json"}
                     onChange={() => setExportFormat("json")}
-                    style={{ marginRight: "5px" }}
                   />
                   JSON Format
                 </label>
@@ -775,14 +609,9 @@ function App() {
               <button
                 onClick={handleExportTeam}
                 disabled={currentTeam.length === 0}
+                className="btn btn-primary"
                 style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
                   cursor: currentTeam.length > 0 ? "pointer" : "not-allowed",
-                  backgroundColor: currentTeam.length > 0 ? "#646cff" : "#ccc",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
                   marginRight: "10px",
                 }}
               >
@@ -792,15 +621,8 @@ function App() {
               {exportText && (
                 <button
                   onClick={handleCopyExport}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    backgroundColor: "#4caf50",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                  }}
+                  className="btn"
+                  style={{ backgroundColor: "#4caf50" }}
                 >
                   Copy to Clipboard
                 </button>
@@ -808,16 +630,11 @@ function App() {
 
               {exportStatus && (
                 <div
-                  style={{
-                    marginTop: "10px",
-                    padding: "10px",
-                    background: exportStatus.includes("❌")
-                      ? "#ffebee"
-                      : "#e8f5e9",
-                    color: exportStatus.includes("❌") ? "#c62828" : "#2e7d32",
-                    borderRadius: "4px",
-                    fontSize: "14px",
-                  }}
+                  className={`status-message ${
+                    exportStatus.includes("❌")
+                      ? "status-error"
+                      : "status-success"
+                  }`}
                 >
                   {exportStatus}
                 </div>
@@ -827,79 +644,48 @@ function App() {
                 <textarea
                   value={exportText}
                   readOnly
-                  style={{
-                    width: "100%",
-                    height: "200px",
-                    padding: "10px",
-                    fontSize: "14px",
-                    fontFamily: "monospace",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    marginTop: "10px",
-                    backgroundColor: "#f9f9f9",
-                  }}
+                  className="form-textarea mt-10"
+                  style={{ height: "200px", fontFamily: "monospace" }}
                 />
               )}
             </div>
           </div>
 
           {/* Pokemon Search Section */}
-          <div
-            style={{
-              padding: "20px",
-              background: "white",
-              borderRadius: "8px",
-            }}
-          >
+          <div className="card">
             <h3>Pokemon Data Lookup</h3>
             <p>Search for a Pokemon to load its data from PokeAPI</p>
 
-            <div style={{ margin: "20px 0" }}>
+            <div className="mt-20 mb-20">
               <input
                 type="text"
                 value={pokemonSearch}
                 onChange={(e) => setPokemonSearch(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && searchForPokemon()}
                 placeholder="Enter Pokemon name (e.g., charizard)"
-                style={{
-                  padding: "10px",
-                  fontSize: "16px",
-                  width: "300px",
-                  marginRight: "10px",
-                  borderRadius: "4px",
-                  border: "1px solid #ccc",
-                }}
+                className="form-input"
+                style={{ width: "300px", marginRight: "10px" }}
               />
               <button
                 onClick={searchForPokemon}
                 disabled={isLoadingPokemon}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "16px",
-                  cursor: isLoadingPokemon ? "wait" : "pointer",
-                  backgroundColor: isLoadingPokemon ? "#ccc" : "#646cff",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                }}
+                className="btn btn-primary"
+                style={{ cursor: isLoadingPokemon ? "wait" : "pointer" }}
               >
                 {isLoadingPokemon ? "Loading..." : "Search"}
               </button>
             </div>
 
             {pokemonError && (
-              <div style={{ color: "red", margin: "10px 0" }}>
+              <div className="status-message status-error mt-10">
                 {pokemonError}
               </div>
             )}
 
             {pokemonData && (
               <div
+                className="card mt-20"
                 style={{
-                  marginTop: "20px",
-                  padding: "20px",
-                  background: "white",
-                  borderRadius: "8px",
                   textAlign: "left",
                   maxWidth: "600px",
                   marginLeft: "auto",
@@ -911,27 +697,19 @@ function App() {
                 </h3>
 
                 {pokemonData.isModified && (
-                  <div
-                    style={{
-                      background: "#fff3cd",
-                      padding: "10px",
-                      borderRadius: "4px",
-                      marginBottom: "10px",
-                      color: "#856404",
-                    }}
-                  >
+                  <div className="status-message status-warning mb-10">
                     ⚠️ Modified in Run & Bun:{" "}
                     {pokemonData.modifications || "Stats/moves changed"}
                   </div>
                 )}
 
-                <div style={{ marginBottom: "15px" }}>
+                <div className="mb-15">
                   <strong>Types:</strong> {pokemonData.types.join(", ")}
                 </div>
 
-                <div style={{ marginBottom: "15px" }}>
+                <div className="mb-15">
                   <strong>Base Stats:</strong>
-                  <ul style={{ marginTop: "5px" }}>
+                  <ul className="mt-5">
                     <li>HP: {pokemonData.baseStats.hp}</li>
                     <li>Attack: {pokemonData.baseStats.atk}</li>
                     <li>Defense: {pokemonData.baseStats.def}</li>
@@ -948,7 +726,7 @@ function App() {
                   </ul>
                 </div>
 
-                <div style={{ marginBottom: "15px" }}>
+                <div className="mb-15">
                   <strong>Abilities:</strong> {pokemonData.abilities.join(", ")}
                 </div>
 
@@ -956,13 +734,8 @@ function App() {
                   <strong>Available Moves:</strong>{" "}
                   {pokemonData.learnset.length} moves
                   <div
-                    style={{
-                      marginTop: "5px",
-                      fontSize: "12px",
-                      color: "#666",
-                      maxHeight: "100px",
-                      overflowY: "auto",
-                    }}
+                    className="text-tiny text-secondary mt-5"
+                    style={{ maxHeight: "100px", overflowY: "auto" }}
                   >
                     {pokemonData.learnset.slice(0, 20).join(", ")}
                     {pokemonData.learnset.length > 20 && "..."}
