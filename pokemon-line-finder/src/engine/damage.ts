@@ -39,6 +39,11 @@ import {
   hasFocusSashProtection,
 } from "../data/items";
 
+import {
+  weatherPreventsMove,
+  getWeatherDamageMultiplier,
+} from "../data/weather";
+
 /**
  * Calculate the effective stat value including stage modifiers
  */
@@ -204,7 +209,12 @@ export function calculateDamage(
   // For singles, this is always 1
   // TODO: Implement this for doubles
 
-  // Weather
+  // Weather - check if weather prevents the move entirely
+  if (weatherPreventsMove(move.type, battleState.weather)) {
+    return 0; // Move fails (Water in harsh sun, Fire in heavy rain)
+  }
+
+  // Weather - type-based damage modifiers
   if (battleState.weather === "sun" && move.type in WEATHER_MULTIPLIERS.sun) {
     modifiers *=
       WEATHER_MULTIPLIERS.sun[
@@ -220,13 +230,17 @@ export function calculateDamage(
       ] || 1;
   } else if (battleState.weather === "harsh-sun" && move.type === "Fire") {
     modifiers *= 1.5;
-  } else if (battleState.weather === "harsh-sun" && move.type === "Water") {
-    return 0; // Water moves fail in harsh sun
   } else if (battleState.weather === "heavy-rain" && move.type === "Water") {
     modifiers *= 1.5;
-  } else if (battleState.weather === "heavy-rain" && move.type === "Fire") {
-    return 0; // Fire moves fail in heavy rain
   }
+
+  // Weather - ability-based damage modifiers (Solar Power, Sand Force)
+  const weatherAbilityMult = getWeatherDamageMultiplier(
+    attacker.ability,
+    move.type,
+    battleState.weather,
+  );
+  modifiers *= weatherAbilityMult;
 
   // Critical hit
   if (isCrit) {

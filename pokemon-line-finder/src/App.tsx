@@ -9,6 +9,7 @@ import {
   validateAILogic,
 } from "./utils/testLineFinder";
 import { runItemTests } from "./utils/testItems";
+import { runWeatherTests } from "./utils/testWeather";
 import { getPokemonInfo } from "./data/pokemonService";
 import type { CompletePokemonData } from "./data/pokemonService";
 import {
@@ -132,6 +133,8 @@ function App() {
       validateAILogic();
       output += "\n";
       runItemTests();
+      output += "\n";
+      runWeatherTests();
 
       setTestOutput(output);
     } catch (error) {
@@ -241,6 +244,7 @@ function App() {
           <li>✅ Battle simulator</li>
           <li>✅ Line-finding algorithm</li>
           <li>✅ Held items system</li>
+          <li>✅ Weather effects system</li>
           <li>🔄 React UI (in progress)</li>
         </ul>
       </div>

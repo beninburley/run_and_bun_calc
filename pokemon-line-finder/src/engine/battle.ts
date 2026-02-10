@@ -23,6 +23,12 @@ import { calculateAIDecision } from "./ai";
 
 import { getItem, getItemStatMultiplier } from "../data/items";
 
+import {
+  calculateWeatherDamage,
+  calculateWeatherHealing,
+  getWeatherSpeedMultiplier,
+} from "../data/weather";
+
 /**
  * Create initial stat modifiers (all at 0)
  */
@@ -299,13 +305,17 @@ export function simulateTurn(
     getEffectiveStat(
       newState.playerActive.stats.spe,
       newState.playerActive.statModifiers.spe,
-    ) * getItemStatMultiplier(getItem(newState.playerActive.item), "spe"),
+    ) *
+      getItemStatMultiplier(getItem(newState.playerActive.item), "spe") *
+      getWeatherSpeedMultiplier(newState.playerActive, newState.weather),
   );
   const opponentSpeed = Math.floor(
     getEffectiveStat(
       newState.opponentActive.stats.spe,
       newState.opponentActive.statModifiers.spe,
-    ) * getItemStatMultiplier(getItem(newState.opponentActive.item), "spe"),
+    ) *
+      getItemStatMultiplier(getItem(newState.opponentActive.item), "spe") *
+      getWeatherSpeedMultiplier(newState.opponentActive, newState.weather),
   );
 
   const firstMover = determineFirstMover(
@@ -384,6 +394,12 @@ export function simulateTurn(
       if (attacker.currentPP[action.moveIndex] > 0) {
         attacker.currentPP[action.moveIndex]--;
       }
+
+      // Apply weather-setting effects
+      if (move.weatherEffect) {
+        newState.weather = move.weatherEffect;
+        newState.weatherTurns = 5; // Standard weather duration
+      }
     }
   };
 
@@ -446,6 +462,79 @@ export function simulateTurn(
     newState.weatherTurns--;
     if (newState.weatherTurns === 0) {
       newState.weather = "clear";
+    }
+  }
+
+  // Apply end-of-turn weather effects (damage/healing)
+  if (newState.weather !== "clear") {
+    // Player takes weather damage/healing
+    if (newState.playerActive.currentHp > 0) {
+      const weatherDamage = calculateWeatherDamage(
+        newState.playerActive,
+        newState.weather,
+      );
+      const weatherHealing = calculateWeatherHealing(
+        newState.playerActive,
+        newState.weather,
+      );
+
+      if (weatherDamage > 0) {
+        newState.playerActive.currentHp = Math.max(
+          0,
+          newState.playerActive.currentHp - weatherDamage,
+        );
+        if (newState.playerActive.currentHp === 0) {
+          playerFainted = true;
+        }
+      } else if (weatherHealing > 0) {
+        newState.playerActive.currentHp = Math.min(
+          newState.playerActive.stats.hp,
+          newState.playerActive.currentHp + weatherHealing,
+        );
+      }
+
+      // Sync back to team
+      const playerActiveIndex = newState.playerTeam.findIndex(
+        (p) => p.species === newState.playerActive.species,
+      );
+      if (playerActiveIndex !== -1) {
+        newState.playerTeam[playerActiveIndex] = newState.playerActive;
+      }
+    }
+
+    // Opponent takes weather damage/healing
+    if (newState.opponentActive.currentHp > 0) {
+      const weatherDamage = calculateWeatherDamage(
+        newState.opponentActive,
+        newState.weather,
+      );
+      const weatherHealing = calculateWeatherHealing(
+        newState.opponentActive,
+        newState.weather,
+      );
+
+      if (weatherDamage > 0) {
+        newState.opponentActive.currentHp = Math.max(
+          0,
+          newState.opponentActive.currentHp - weatherDamage,
+        );
+        if (newState.opponentActive.currentHp === 0) {
+          opponentFainted = true;
+        }
+      } else if (weatherHealing > 0) {
+        newState.opponentActive.currentHp = Math.min(
+          newState.opponentActive.stats.hp,
+          newState.opponentActive.currentHp + weatherHealing,
+        );
+      }
+
+      // Sync back to team
+      const opponentActiveIndex = newState.opponentTeam.findIndex(
+        (p) => p.species === newState.opponentActive.species,
+      );
+      if (opponentActiveIndex !== -1) {
+        newState.opponentTeam[opponentActiveIndex] = newState.opponentActive;
+      }
     }
   }
 

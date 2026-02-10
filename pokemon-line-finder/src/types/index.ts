@@ -98,6 +98,7 @@ export interface Move {
     status: Status;
     chance: number;
   };
+  weatherEffect?: Weather; // Sets weather when used
 
   // Multi-hit
   hits?: number | [number, number]; // exact or range
