@@ -21,6 +21,8 @@ import {
 
 import { calculateAIDecision } from "./ai";
 
+import { getItem, getItemStatMultiplier } from "../data/items";
+
 /**
  * Create initial stat modifiers (all at 0)
  */
@@ -293,13 +295,17 @@ export function simulateTurn(
     opponentMove = newState.opponentActive.moves[opponentAction.moveIndex];
   }
 
-  const playerSpeed = getEffectiveStat(
-    newState.playerActive.stats.spe,
-    newState.playerActive.statModifiers.spe,
+  const playerSpeed = Math.floor(
+    getEffectiveStat(
+      newState.playerActive.stats.spe,
+      newState.playerActive.statModifiers.spe,
+    ) * getItemStatMultiplier(getItem(newState.playerActive.item), "spe"),
   );
-  const opponentSpeed = getEffectiveStat(
-    newState.opponentActive.stats.spe,
-    newState.opponentActive.statModifiers.spe,
+  const opponentSpeed = Math.floor(
+    getEffectiveStat(
+      newState.opponentActive.stats.spe,
+      newState.opponentActive.statModifiers.spe,
+    ) * getItemStatMultiplier(getItem(newState.opponentActive.item), "spe"),
   );
 
   const firstMover = determineFirstMover(

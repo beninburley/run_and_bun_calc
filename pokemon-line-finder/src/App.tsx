@@ -8,6 +8,7 @@ import {
   validateDamageCalculations,
   validateAILogic,
 } from "./utils/testLineFinder";
+import { runItemTests } from "./utils/testItems";
 import { getPokemonInfo } from "./data/pokemonService";
 import type { CompletePokemonData } from "./data/pokemonService";
 import {
@@ -129,6 +130,8 @@ function App() {
       validateDamageCalculations();
       output += "\n";
       validateAILogic();
+      output += "\n";
+      runItemTests();
 
       setTestOutput(output);
     } catch (error) {
@@ -237,6 +240,7 @@ function App() {
           <li>✅ AI logic implementation</li>
           <li>✅ Battle simulator</li>
           <li>✅ Line-finding algorithm</li>
+          <li>✅ Held items system</li>
           <li>🔄 React UI (in progress)</li>
         </ul>
       </div>
@@ -522,10 +526,36 @@ function App() {
               {currentTeam.length === 0 ? (
                 <span className="text-muted">No team loaded</span>
               ) : (
-                <span>
-                  {currentTeam.map((p) => p.species).join(", ")} (
-                  {currentTeam.length} Pokemon)
-                </span>
+                <div className="team-display mt-10">
+                  {currentTeam.map((pokemon, i) => (
+                    <div key={i} className="pokemon-info">
+                      <div className="text-small">
+                        <strong>{pokemon.species}</strong> Lv.{pokemon.level}
+                      </div>
+                      <div className="text-tiny text-secondary">
+                        {pokemon.types.join(" / ")}
+                      </div>
+                      {pokemon.item && (
+                        <div
+                          className="text-tiny"
+                          style={{ color: "#646cff", fontWeight: "500" }}
+                        >
+                          @ {pokemon.item}
+                        </div>
+                      )}
+                      <div className="text-tiny text-muted">
+                        {pokemon.ability}
+                      </div>
+                      <div className="text-tiny text-muted">
+                        {pokemon.moves
+                          .map((m) => m.name)
+                          .slice(0, 2)
+                          .join(", ")}
+                        {pokemon.moves.length > 2 && "..."}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 

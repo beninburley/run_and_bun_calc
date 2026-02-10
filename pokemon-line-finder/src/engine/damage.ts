@@ -32,6 +32,13 @@ import {
   type DamageContext,
 } from "../data/abilities";
 
+import {
+  getItem,
+  getItemDamageMultiplier,
+  getItemStatMultiplier,
+  hasFocusSashProtection,
+} from "../data/items";
+
 /**
  * Calculate the effective stat value including stage modifiers
  */
@@ -135,11 +142,14 @@ export function calculateDamage(
 
   // TODO: Weather-boosted moves (e.g., Solar Beam in sun)
   // TODO: Terrain-boosted moves
-  // TODO: Item boosts (e.g., Choice Band, Life Orb)
 
   // Step 3: Attack / Defense
   let attack: number;
   let defense: number;
+
+  // Get item stat multipliers
+  const attackerItem = getItem(attacker.item);
+  const defenderItem = getItem(defender.item);
 
   if (move.category === "physical") {
     attack = getEffectiveStat(
@@ -152,6 +162,10 @@ export function calculateDamage(
       defender.statModifiers.def,
       isCrit,
     );
+
+    // Apply item stat boosts
+    attack = Math.floor(attack * getItemStatMultiplier(attackerItem, "atk"));
+    defense = Math.floor(defense * getItemStatMultiplier(defenderItem, "def"));
 
     // Burn halves physical attack (unless attacker has Guts)
     if (attacker.status === "burn") {
@@ -171,6 +185,10 @@ export function calculateDamage(
       defender.statModifiers.spd,
       isCrit,
     );
+
+    // Apply item stat boosts
+    attack = Math.floor(attack * getItemStatMultiplier(attackerItem, "spa"));
+    defense = Math.floor(defense * getItemStatMultiplier(defenderItem, "spd"));
   }
 
   // Step 4: Base damage calculation
@@ -268,8 +286,15 @@ export function calculateDamage(
   );
   modifiers *= abilityMultiplier;
 
+  // Items - damage multipliers (Life Orb, Expert Belt, type-boost items)
+  const itemMultiplier = getItemDamageMultiplier(
+    attackerItem,
+    move.type,
+    effectiveness,
+  );
+  modifiers *= itemMultiplier;
+
   // TODO: Other modifiers
-  // - Items (Life Orb, Expert Belt, type-boosting items, etc.)
   // - Terrain effects
   // - Other field effects
 
@@ -290,7 +315,15 @@ export function calculateDamage(
     }
   }
 
-  // TODO: Focus Sash item support
+  // Focus Sash item - prevents OHKO when at full HP
+  if (
+    hasFocusSashProtection(defenderItem) &&
+    defender.currentHp === defender.stats.hp
+  ) {
+    if (damage >= defender.currentHp) {
+      damage = defender.currentHp - 1;
+    }
+  }
 
   return damage;
 }

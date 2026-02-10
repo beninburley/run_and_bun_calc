@@ -92,7 +92,7 @@ export function getMockBattle1(): {
   playerTeam: PokemonInstance[];
   opponentTeam: PokemonInstance[];
 } {
-  // Player: Single Charizard
+  // Player: Single Charizard with Life Orb
   const charizard = createTestPokemon(
     "Charizard",
     50,
@@ -105,9 +105,10 @@ export function getMockBattle1(): {
       createMove("Heat Wave", "Fire", "special", 95, 90),
     ],
     "Blaze",
+    "Life Orb",
   );
 
-  // Opponent: Weaker Grass type
+  // Opponent: Weaker Grass type with Sitrus Berry
   const venusaur = createTestPokemon(
     "Venusaur",
     48,
@@ -120,6 +121,7 @@ export function getMockBattle1(): {
       createMove("Sleep Powder", "Grass", "status", 0, 75),
     ],
     "Overgrow",
+    "Sitrus Berry",
   );
 
   return {
@@ -135,7 +137,7 @@ export function getMockBattle2(): {
   playerTeam: PokemonInstance[];
   opponentTeam: PokemonInstance[];
 } {
-  // Player team: 2 Pokemon
+  // Player team: 2 Pokemon with items
   const lucario = createTestPokemon(
     "Lucario",
     55,
@@ -148,6 +150,7 @@ export function getMockBattle2(): {
       createMove("Bullet Punch", "Steel", "physical", 40, 100, 1), // Priority +1
     ],
     "Inner Focus",
+    "Choice Band",
   );
 
   const garchomp = createTestPokemon(
@@ -162,9 +165,10 @@ export function getMockBattle2(): {
       createMove("Fire Fang", "Fire", "physical", 65, 95),
     ],
     "Rough Skin",
+    "Choice Scarf",
   );
 
-  // Opponent team: 2 Pokemon
+  // Opponent team: 2 Pokemon with items
   const steelix = createTestPokemon(
     "Steelix",
     56,
@@ -177,6 +181,7 @@ export function getMockBattle2(): {
       createMove("Stealth Rock", "Rock", "status", 0, 100),
     ],
     "Sturdy",
+    "Leftovers",
   );
 
   const alakazam = createTestPokemon(
@@ -191,6 +196,7 @@ export function getMockBattle2(): {
       createMove("Dazzling Gleam", "Fairy", "special", 80, 100),
     ],
     "Magic Guard",
+    "Focus Sash",
   );
 
   return {
