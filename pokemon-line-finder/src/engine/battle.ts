@@ -34,6 +34,12 @@ import {
   getTerrainSpeedMultiplier,
 } from "../data/terrain";
 
+import {
+  calculateHazardDamageWithItems,
+  HAZARD_SETTING_MOVES,
+  HAZARD_REMOVAL_MOVES,
+} from "../data/hazards";
+
 /**
  * Create initial stat modifiers (all at 0)
  */
@@ -122,39 +128,113 @@ function applyHazardDamage(
   pokemon: PokemonInstance,
   hazards: BattleState["playerHazards"],
 ): number {
-  let damage = 0;
+  const hazardResult = calculateHazardDamageWithItems(pokemon, hazards);
 
-  // Stealth Rock
-  if (hazards.stealthRock) {
-    // Calculate type effectiveness (simplified for MVP)
-    // TODO: Implement proper type effectiveness for SR
-    const srDamage = Math.floor(pokemon.stats.hp / 8); // 12.5% base
-    damage += srDamage;
+  if (hazardResult.bootsNegated) {
+    return 0;
   }
 
-  // Spikes
-  if (hazards.spikes > 0 && !pokemon.types.includes("Flying")) {
-    const spikesDamage = Math.floor(pokemon.stats.hp * (hazards.spikes / 8));
-    damage += spikesDamage;
-  }
-
-  // Toxic Spikes (applies poison, not direct damage)
-  if (
-    hazards.toxicSpikes > 0 &&
-    !pokemon.types.includes("Flying") &&
-    !pokemon.types.includes("Poison") &&
+  if (hazardResult.toxicSpikesEffect === "absorb") {
+    hazards.toxicSpikes = 0;
+  } else if (
+    hazardResult.toxicSpikesEffect !== "none" &&
     pokemon.status === "healthy"
   ) {
-    // Apply poison or badly poison
-    pokemon.status = hazards.toxicSpikes >= 2 ? "badly-poison" : "poison";
+    pokemon.status = hazardResult.toxicSpikesEffect;
   }
 
-  // Sticky Web (lowers speed)
-  if (hazards.stickyWeb && !pokemon.types.includes("Flying")) {
+  if (hazardResult.stickyWebApplies) {
     pokemon.statModifiers.spe = Math.max(-6, pokemon.statModifiers.spe - 1);
   }
 
-  return damage;
+  return hazardResult.damage;
+}
+
+function clearHazards(hazards: BattleState["playerHazards"]): void {
+  hazards.stealthRock = false;
+  hazards.spikes = 0;
+  hazards.toxicSpikes = 0;
+  hazards.stickyWeb = false;
+}
+
+function inferHazardEffect(move: Move): Move["hazardEffect"] | undefined {
+  if (move.hazardEffect) {
+    return move.hazardEffect;
+  }
+
+  const hazardSetting = HAZARD_SETTING_MOVES[move.name];
+  if (hazardSetting) {
+    switch (hazardSetting) {
+      case "stealthRock":
+        return "stealth-rock";
+      case "stickyWeb":
+        return "sticky-web";
+      case "spikes":
+      case "spikes-add":
+        return "spikes";
+      case "toxicSpikes":
+      case "toxic-spikes-add":
+        return "toxic-spikes";
+      default:
+        break;
+    }
+  }
+
+  if (HAZARD_REMOVAL_MOVES[move.name]) {
+    return HAZARD_REMOVAL_MOVES[move.name].removesOpponent
+      ? "defog"
+      : "rapid-spin";
+  }
+
+  return undefined;
+}
+
+function applyHazardMoveEffects(
+  move: Move,
+  battleState: BattleState,
+  isPlayer: boolean,
+): void {
+  const hazardEffect = inferHazardEffect(move);
+  if (!hazardEffect) {
+    return;
+  }
+
+  if (hazardEffect === "rapid-spin" || hazardEffect === "defog") {
+    const selfHazards = isPlayer
+      ? battleState.playerHazards
+      : battleState.opponentHazards;
+    clearHazards(selfHazards);
+
+    if (hazardEffect === "defog") {
+      const foeHazards = isPlayer
+        ? battleState.opponentHazards
+        : battleState.playerHazards;
+      clearHazards(foeHazards);
+    }
+
+    return;
+  }
+
+  const targetHazards = isPlayer
+    ? battleState.opponentHazards
+    : battleState.playerHazards;
+
+  switch (hazardEffect) {
+    case "stealth-rock":
+      targetHazards.stealthRock = true;
+      break;
+    case "spikes":
+      targetHazards.spikes = Math.min(3, targetHazards.spikes + 1);
+      break;
+    case "toxic-spikes":
+      targetHazards.toxicSpikes = Math.min(2, targetHazards.toxicSpikes + 1);
+      break;
+    case "sticky-web":
+      targetHazards.stickyWeb = true;
+      break;
+    default:
+      break;
+  }
 }
 
 /**
@@ -186,6 +266,7 @@ function processMove(
   defenderFainted: boolean;
   attackerRecoil: number;
   risks: Risk[];
+  moveHit: boolean;
 } {
   const damageCalc = calculateFullDamage(move, attacker, defender, battleState);
   const risks: Risk[] = [];
@@ -207,6 +288,7 @@ function processMove(
           impact: "severe",
         },
       ],
+      moveHit: false,
     };
   }
 
@@ -271,6 +353,7 @@ function processMove(
     defenderFainted,
     attackerRecoil,
     risks,
+    moveHit: true,
   };
 }
 
@@ -412,6 +495,10 @@ export function simulateTurn(
       if (move.terrainEffect) {
         newState.terrain = move.terrainEffect;
         newState.terrainTurns = 5; // Standard terrain duration
+      }
+
+      if (moveResult.moveHit) {
+        applyHazardMoveEffects(move, newState, isPlayer);
       }
     }
   };

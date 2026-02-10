@@ -100,6 +100,13 @@ export interface Move {
   };
   weatherEffect?: Weather; // Sets weather when used
   terrainEffect?: Terrain; // Sets terrain when used
+  hazardEffect?:
+    | "stealth-rock"
+    | "spikes"
+    | "toxic-spikes"
+    | "sticky-web"
+    | "rapid-spin"
+    | "defog"; // Sets or removes hazards
 
   // Multi-hit
   hits?: number | [number, number]; // exact or range
