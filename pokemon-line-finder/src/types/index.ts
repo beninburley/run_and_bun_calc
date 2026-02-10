@@ -99,6 +99,7 @@ export interface Move {
     chance: number;
   };
   weatherEffect?: Weather; // Sets weather when used
+  terrainEffect?: Terrain; // Sets terrain when used
 
   // Multi-hit
   hits?: number | [number, number]; // exact or range

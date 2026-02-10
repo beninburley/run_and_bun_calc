@@ -44,6 +44,12 @@ import {
   getWeatherDamageMultiplier,
 } from "../data/weather";
 
+import {
+  terrainPreventsMove,
+  getTerrainPowerMultiplier,
+  getTerrainDefensiveMultiplier,
+} from "../data/terrain";
+
 /**
  * Calculate the effective stat value including stage modifiers
  */
@@ -241,6 +247,27 @@ export function calculateDamage(
     battleState.weather,
   );
   modifiers *= weatherAbilityMult;
+
+  // Terrain - check if terrain prevents the move (Psychic Terrain blocks priority)
+  if (terrainPreventsMove(move.priority, defender, battleState.terrain)) {
+    return 0; // Priority moves fail against grounded Pokemon in Psychic Terrain
+  }
+
+  // Terrain - power multipliers (Electric/Grassy/Misty/Psychic Terrain)
+  const terrainPowerMult = getTerrainPowerMultiplier(
+    attacker,
+    move.type,
+    battleState.terrain,
+  );
+  modifiers *= terrainPowerMult;
+
+  // Terrain - defensive multipliers (Grassy Terrain halves Earthquake)
+  const terrainDefenseMult = getTerrainDefensiveMultiplier(
+    defender,
+    move.name,
+    battleState.terrain,
+  );
+  modifiers *= terrainDefenseMult;
 
   // Critical hit
   if (isCrit) {

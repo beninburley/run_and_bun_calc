@@ -29,6 +29,11 @@ import {
   getWeatherSpeedMultiplier,
 } from "../data/weather";
 
+import {
+  calculateTerrainHealing,
+  getTerrainSpeedMultiplier,
+} from "../data/terrain";
+
 /**
  * Create initial stat modifiers (all at 0)
  */
@@ -307,7 +312,8 @@ export function simulateTurn(
       newState.playerActive.statModifiers.spe,
     ) *
       getItemStatMultiplier(getItem(newState.playerActive.item), "spe") *
-      getWeatherSpeedMultiplier(newState.playerActive, newState.weather),
+      getWeatherSpeedMultiplier(newState.playerActive, newState.weather) *
+      getTerrainSpeedMultiplier(newState.playerActive, newState.terrain),
   );
   const opponentSpeed = Math.floor(
     getEffectiveStat(
@@ -315,7 +321,8 @@ export function simulateTurn(
       newState.opponentActive.statModifiers.spe,
     ) *
       getItemStatMultiplier(getItem(newState.opponentActive.item), "spe") *
-      getWeatherSpeedMultiplier(newState.opponentActive, newState.weather),
+      getWeatherSpeedMultiplier(newState.opponentActive, newState.weather) *
+      getTerrainSpeedMultiplier(newState.opponentActive, newState.terrain),
   );
 
   const firstMover = determineFirstMover(
@@ -399,6 +406,12 @@ export function simulateTurn(
       if (move.weatherEffect) {
         newState.weather = move.weatherEffect;
         newState.weatherTurns = 5; // Standard weather duration
+      }
+
+      // Apply terrain-setting effects
+      if (move.terrainEffect) {
+        newState.terrain = move.terrainEffect;
+        newState.terrainTurns = 5; // Standard terrain duration
       }
     }
   };
@@ -542,6 +555,55 @@ export function simulateTurn(
     newState.terrainTurns--;
     if (newState.terrainTurns === 0) {
       newState.terrain = "none";
+    }
+  }
+
+  // Apply end-of-turn terrain effects (healing)
+  if (newState.terrain !== "none") {
+    // Player terrain healing (Grassy Terrain)
+    if (newState.playerActive.currentHp > 0) {
+      const terrainHealing = calculateTerrainHealing(
+        newState.playerActive,
+        newState.terrain,
+      );
+
+      if (terrainHealing > 0) {
+        newState.playerActive.currentHp = Math.min(
+          newState.playerActive.stats.hp,
+          newState.playerActive.currentHp + terrainHealing,
+        );
+
+        // Sync back to team
+        const playerActiveIndex = newState.playerTeam.findIndex(
+          (p) => p.species === newState.playerActive.species,
+        );
+        if (playerActiveIndex !== -1) {
+          newState.playerTeam[playerActiveIndex] = newState.playerActive;
+        }
+      }
+    }
+
+    // Opponent terrain healing
+    if (newState.opponentActive.currentHp > 0) {
+      const terrainHealing = calculateTerrainHealing(
+        newState.opponentActive,
+        newState.terrain,
+      );
+
+      if (terrainHealing > 0) {
+        newState.opponentActive.currentHp = Math.min(
+          newState.opponentActive.stats.hp,
+          newState.opponentActive.currentHp + terrainHealing,
+        );
+
+        // Sync back to team
+        const opponentActiveIndex = newState.opponentTeam.findIndex(
+          (p) => p.species === newState.opponentActive.species,
+        );
+        if (opponentActiveIndex !== -1) {
+          newState.opponentTeam[opponentActiveIndex] = newState.opponentActive;
+        }
+      }
     }
   }
 

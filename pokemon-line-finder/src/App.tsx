@@ -10,6 +10,7 @@ import {
 } from "./utils/testLineFinder";
 import { runItemTests } from "./utils/testItems";
 import { runWeatherTests } from "./utils/testWeather";
+import { runTerrainTests } from "./utils/testTerrain";
 import { getPokemonInfo } from "./data/pokemonService";
 import type { CompletePokemonData } from "./data/pokemonService";
 import {
@@ -135,6 +136,8 @@ function App() {
       runItemTests();
       output += "\n";
       runWeatherTests();
+      output += "\n";
+      runTerrainTests();
 
       setTestOutput(output);
     } catch (error) {
@@ -245,6 +248,7 @@ function App() {
           <li>✅ Line-finding algorithm</li>
           <li>✅ Held items system</li>
           <li>✅ Weather effects system</li>
+          <li>✅ Terrain effects system</li>
           <li>🔄 React UI (in progress)</li>
         </ul>
       </div>
