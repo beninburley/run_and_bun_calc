@@ -25,6 +25,13 @@ import {
   WEATHER_MULTIPLIERS,
 } from "../data/constants";
 
+import {
+  getAbilityDamageMultiplier,
+  isTypeImmune,
+  preventsOHKO,
+  type DamageContext,
+} from "../data/abilities";
+
 /**
  * Calculate the effective stat value including stage modifiers
  */
@@ -111,6 +118,11 @@ export function calculateDamage(
     return 0;
   }
 
+  // Check for type immunity from abilities (e.g., Levitate vs Ground)
+  if (isTypeImmune(defender.ability, move.type)) {
+    return 0;
+  }
+
   const isCrit = options.isCrit || false;
   const randomRoll = options.randomRoll || DAMAGE_RANDOM_MAX;
 
@@ -143,8 +155,10 @@ export function calculateDamage(
 
     // Burn halves physical attack (unless attacker has Guts)
     if (attacker.status === "burn") {
-      // TODO: Check for Guts ability
-      attack = Math.floor(attack * BURN_ATTACK_MODIFIER);
+      // Check for Guts ability - Guts ignores burn attack reduction
+      if (attacker.ability !== "Guts") {
+        attack = Math.floor(attack * BURN_ATTACK_MODIFIER);
+      }
     }
   } else {
     attack = getEffectiveStat(
@@ -230,8 +244,31 @@ export function calculateDamage(
     }
   }
 
+  // Abilities
+  const attackerHPPercent = (attacker.currentHp / attacker.stats.hp) * 100;
+  const defenderHPPercent = (defender.currentHp / defender.stats.hp) * 100;
+
+  const abilityContext: DamageContext = {
+    attackerAbility: attacker.ability,
+    defenderAbility: defender.ability,
+    moveType: move.type,
+    moveCategory: move.category,
+    attackerTypes: attacker.types,
+    defenderTypes: defender.types,
+    attackerHPPercent,
+    defenderHPPercent,
+    weather: battleState.weather,
+    isSTAB: hasSTAB(move, attacker),
+  };
+
+  const abilityMultiplier = getAbilityDamageMultiplier(
+    attacker.ability,
+    defender.ability,
+    abilityContext,
+  );
+  modifiers *= abilityMultiplier;
+
   // TODO: Other modifiers
-  // - Abilities (Adaptability, Technician, Overgrow/Blaze/Torrent/Swarm, etc.)
   // - Items (Life Orb, Expert Belt, type-boosting items, etc.)
   // - Terrain effects
   // - Other field effects
@@ -242,6 +279,18 @@ export function calculateDamage(
   if (damage < 1 && effectiveness > 0) {
     damage = 1;
   }
+
+  // Sturdy / Focus Sash - prevents OHKO when at full HP
+  if (
+    preventsOHKO(defender.ability) &&
+    defender.currentHp === defender.stats.hp
+  ) {
+    if (damage >= defender.currentHp) {
+      damage = defender.currentHp - 1;
+    }
+  }
+
+  // TODO: Focus Sash item support
 
   return damage;
 }

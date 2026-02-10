@@ -3,6 +3,9 @@
  * Run this to ensure the line-finder produces expected results
  */
 
+// Type declaration for Node.js process (used when running tests via tsx)
+declare const process: { exit: (code: number) => never };
+
 import { findLines, DEFAULT_SEARCH_OPTIONS } from "../engine/lineFinder";
 import { getMockBattle1, getMockBattle2 } from "./testData";
 import { LineOfPlay, PokemonInstance } from "../types";
@@ -384,6 +387,16 @@ export const tests = {
 };
 
 // Run tests when executed directly
-runLineFinderTests();
+const results = runLineFinderTests();
 validateDamageCalculations();
 validateAILogic();
+
+// Exit with appropriate code for CI/CD (only in Node.js, not browser)
+if (typeof process !== "undefined" && process.exit) {
+  const failedCount = results.filter((r) => !r.passed).length;
+  if (failedCount > 0) {
+    process.exit(1);
+  } else {
+    process.exit(0);
+  }
+}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import { findLines, DEFAULT_SEARCH_OPTIONS } from "./engine/lineFinder";
 import { getMockBattle1, getMockBattle2 } from "./utils/testData";
-import { LineOfPlay } from "./types";
+import { LineOfPlay, PokemonInstance } from "./types";
 import {
   runLineFinderTests,
   validateDamageCalculations,
@@ -10,6 +10,13 @@ import {
 } from "./utils/testLineFinder";
 import { getPokemonInfo } from "./data/pokemonService";
 import type { CompletePokemonData } from "./data/pokemonService";
+import {
+  exportTeam,
+  importTeam,
+  validateTeam,
+  copyToClipboard,
+} from "./utils/teamImportExport";
+import { trainerCategories, getTrainerById } from "./data/trainers";
 
 type TabType = "scenarios" | "tests" | "teambuilder";
 
@@ -30,6 +37,21 @@ function App() {
   const [isLoadingPokemon, setIsLoadingPokemon] = useState(false);
   const [pokemonError, setPokemonError] = useState<string>("");
 
+  // Team import/export state
+  const [currentTeam, setCurrentTeam] = useState<PokemonInstance[]>([]);
+  const [importText, setImportText] = useState<string>("");
+  const [exportText, setExportText] = useState<string>("");
+  const [exportFormat, setExportFormat] = useState<"json" | "showdown">(
+    "showdown",
+  );
+  const [importStatus, setImportStatus] = useState<string>("");
+  const [exportStatus, setExportStatus] = useState<string>("");
+
+  // Trainer selection state
+  const [selectedTrainer, setSelectedTrainer] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] =
+    useState<string>("Gym Leaders");
+
   const runLineFinder = () => {
     setIsSearching(true);
     setLines([]);
@@ -37,11 +59,37 @@ function App() {
     // Use setTimeout to allow UI to update
     setTimeout(() => {
       try {
-        const battle =
-          selectedBattle === "battle1" ? getMockBattle1() : getMockBattle2();
+        let playerTeam: PokemonInstance[];
+        let opponentTeam: PokemonInstance[];
 
-        console.log("Starting battle simulation...");
-        const foundLines = findLines(battle.playerTeam, battle.opponentTeam, {
+        // Determine player team
+        if (currentTeam.length > 0) {
+          playerTeam = currentTeam;
+        } else {
+          // Use mock battle player team
+          const battle =
+            selectedBattle === "battle1" ? getMockBattle1() : getMockBattle2();
+          playerTeam = battle.playerTeam;
+        }
+
+        // Determine opponent team
+        if (selectedTrainer) {
+          const trainer = getTrainerById(selectedTrainer);
+          if (trainer) {
+            opponentTeam = trainer.team;
+            console.log(`Starting battle against ${trainer.name}...`);
+          } else {
+            throw new Error("Selected trainer not found");
+          }
+        } else {
+          // Use mock battle
+          const battle =
+            selectedBattle === "battle1" ? getMockBattle1() : getMockBattle2();
+          opponentTeam = battle.opponentTeam;
+          console.log("Starting battle simulation...");
+        }
+
+        const foundLines = findLines(playerTeam, opponentTeam, {
           ...DEFAULT_SEARCH_OPTIONS,
           maxLines: 5,
           maxDepth: 10,
@@ -105,6 +153,74 @@ function App() {
     } finally {
       setIsLoadingPokemon(false);
     }
+  };
+
+  const handleImportTeam = () => {
+    try {
+      const result = importTeam(importText);
+
+      if (result.format === "json") {
+        const team = result.data as PokemonInstance[];
+        const validation = validateTeam(team);
+
+        if (validation.valid) {
+          setCurrentTeam(team);
+          setImportStatus(
+            `✅ Successfully imported ${team.length} Pokemon from JSON`,
+          );
+        } else {
+          setImportStatus(
+            `❌ Validation errors:\n${validation.errors.join("\n")}`,
+          );
+        }
+      } else {
+        // Showdown format - just show what was parsed
+        setImportStatus(
+          `✅ Parsed ${result.data.length} Pokemon from Showdown format.\n\nNote: Showdown format import requires additional game data conversion (not yet implemented).`,
+        );
+      }
+
+      setImportText("");
+    } catch (error) {
+      setImportStatus(`❌ Import failed: ${error}`);
+    }
+  };
+
+  const handleExportTeam = () => {
+    try {
+      if (currentTeam.length === 0) {
+        setExportStatus("❌ No team to export. Load a team first.");
+        return;
+      }
+
+      const exported = exportTeam(currentTeam, exportFormat);
+      setExportText(exported.data);
+      setExportStatus(`✅ Team exported as ${exportFormat.toUpperCase()}`);
+    } catch (error) {
+      setExportStatus(`❌ Export failed: ${error}`);
+    }
+  };
+
+  const handleCopyExport = async () => {
+    if (!exportText) {
+      setExportStatus("❌ Nothing to copy");
+      return;
+    }
+
+    const success = await copyToClipboard(exportText);
+    if (success) {
+      setExportStatus("✅ Copied to clipboard!");
+    } else {
+      setExportStatus("❌ Failed to copy to clipboard");
+    }
+  };
+
+  const loadMockTeam = () => {
+    const battle = getMockBattle1();
+    setCurrentTeam(battle.playerTeam);
+    setImportStatus(
+      `✅ Loaded mock team: ${battle.playerTeam.map((p) => p.species).join(", ")}`,
+    );
   };
 
   return (
@@ -186,6 +302,133 @@ function App() {
           >
             <h2>Test Battle Scenarios</h2>
 
+            {/* Trainer Selection */}
+            <div
+              style={{
+                marginBottom: "30px",
+                padding: "20px",
+                background: "white",
+                borderRadius: "8px",
+              }}
+            >
+              <h3>Opponent Trainer Database</h3>
+              <p style={{ fontSize: "14px", color: "#666" }}>
+                Select a trainer to battle against, or use the mock battles
+                below
+              </p>
+
+              {/* Category Selection */}
+              <div style={{ marginBottom: "15px" }}>
+                <label style={{ fontWeight: "bold", marginRight: "10px" }}>
+                  Category:
+                </label>
+                {trainerCategories.map((category) => (
+                  <label key={category.name} style={{ marginRight: "15px" }}>
+                    <input
+                      type="radio"
+                      value={category.name}
+                      checked={selectedCategory === category.name}
+                      onChange={(e) => {
+                        setSelectedCategory(e.target.value);
+                        setSelectedTrainer(null);
+                      }}
+                      style={{ marginRight: "5px" }}
+                    />
+                    {category.name}
+                  </label>
+                ))}
+              </div>
+
+              {/* Trainer Selection */}
+              <div style={{ marginBottom: "15px" }}>
+                <label
+                  style={{
+                    fontWeight: "bold",
+                    marginRight: "10px",
+                    display: "block",
+                    marginBottom: "5px",
+                  }}
+                >
+                  Select Trainer:
+                </label>
+                <select
+                  value={selectedTrainer || ""}
+                  onChange={(e) => setSelectedTrainer(e.target.value || null)}
+                  style={{
+                    padding: "8px",
+                    fontSize: "14px",
+                    borderRadius: "4px",
+                    border: "1px solid #ccc",
+                    minWidth: "250px",
+                  }}
+                >
+                  <option value="">-- Choose a trainer --</option>
+                  {trainerCategories
+                    .find((c) => c.name === selectedCategory)
+                    ?.trainers.map((trainer) => (
+                      <option key={trainer.id} value={trainer.id}>
+                        {trainer.name} - {trainer.location}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Trainer Details */}
+              {selectedTrainer &&
+                (() => {
+                  const trainer = getTrainerById(selectedTrainer);
+                  if (!trainer) return null;
+
+                  return (
+                    <div
+                      style={{
+                        padding: "15px",
+                        background: "#f9f9f9",
+                        borderRadius: "4px",
+                        marginTop: "15px",
+                      }}
+                    >
+                      <h4 style={{ marginTop: 0 }}>
+                        {trainer.name} - {trainer.title}
+                      </h4>
+                      <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                        <strong>Location:</strong> {trainer.location}
+                      </p>
+                      <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                        <strong>Difficulty:</strong>{" "}
+                        {"★".repeat(trainer.difficulty)}
+                        {"☆".repeat(5 - trainer.difficulty)}
+                      </p>
+                      {trainer.notes && (
+                        <p
+                          style={{
+                            margin: "10px 0",
+                            fontSize: "13px",
+                            fontStyle: "italic",
+                            color: "#555",
+                          }}
+                        >
+                          💡 {trainer.notes}
+                        </p>
+                      )}
+                      <div style={{ marginTop: "10px" }}>
+                        <strong>Team ({trainer.team.length} Pokemon):</strong>
+                        <ul style={{ marginTop: "5px", fontSize: "13px" }}>
+                          {trainer.team.map((pokemon, i) => (
+                            <li key={i}>
+                              Lv.{pokemon.level} {pokemon.species} -{" "}
+                              {pokemon.moves.map((m) => m.name).join(", ")}
+                              {pokemon.item && ` @ ${pokemon.item}`}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  );
+                })()}
+            </div>
+
+            <h3 style={{ marginTop: "30px" }}>Mock Battles (For Testing)</h3>
             <div style={{ margin: "20px 0" }}>
               <label style={{ marginRight: "10px" }}>
                 <input
@@ -222,10 +465,22 @@ function App() {
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
+                marginTop: "10px",
               }}
             >
-              {isSearching ? "Searching..." : "Find Battle Lines"}
+              {isSearching
+                ? "Searching..."
+                : selectedTrainer
+                  ? `Find Lines vs ${getTrainerById(selectedTrainer)?.name || "Trainer"}`
+                  : "Find Battle Lines (Mock Battle)"}
             </button>
+
+            {currentTeam.length === 0 && (
+              <p style={{ marginTop: "10px", fontSize: "13px", color: "#666" }}>
+                💡 No team loaded. Using mock player team. Import a team in the
+                Team Builder tab to use your own team.
+              </p>
+            )}
           </div>
 
           {lines.length > 0 && (
@@ -388,123 +643,334 @@ function App() {
             borderRadius: "8px",
           }}
         >
-          <h2>Team Builder (Data Fetching Test)</h2>
-          <p>Search for a Pokemon to load its data from PokeAPI</p>
+          <h2>Team Builder & Import/Export</h2>
 
-          <div style={{ margin: "20px 0" }}>
-            <input
-              type="text"
-              value={pokemonSearch}
-              onChange={(e) => setPokemonSearch(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && searchForPokemon()}
-              placeholder="Enter Pokemon name (e.g., charizard)"
-              style={{
-                padding: "10px",
-                fontSize: "16px",
-                width: "300px",
-                marginRight: "10px",
-                borderRadius: "4px",
-                border: "1px solid #ccc",
-              }}
-            />
+          {/* Team Import/Export Section */}
+          <div
+            style={{
+              marginBottom: "30px",
+              padding: "20px",
+              background: "white",
+              borderRadius: "8px",
+            }}
+          >
+            <h3>Team Management</h3>
+
+            <div style={{ marginBottom: "20px" }}>
+              <strong>Current Team:</strong>{" "}
+              {currentTeam.length === 0 ? (
+                <span style={{ color: "#999" }}>No team loaded</span>
+              ) : (
+                <span>
+                  {currentTeam.map((p) => p.species).join(", ")} (
+                  {currentTeam.length} Pokemon)
+                </span>
+              )}
+            </div>
+
             <button
-              onClick={searchForPokemon}
-              disabled={isLoadingPokemon}
+              onClick={loadMockTeam}
               style={{
-                padding: "10px 20px",
-                fontSize: "16px",
-                cursor: isLoadingPokemon ? "wait" : "pointer",
-                backgroundColor: isLoadingPokemon ? "#ccc" : "#646cff",
+                padding: "8px 16px",
+                fontSize: "14px",
+                cursor: "pointer",
+                backgroundColor: "#646cff",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
+                marginRight: "10px",
               }}
             >
-              {isLoadingPokemon ? "Loading..." : "Search"}
+              Load Mock Team (Charizard)
             </button>
-          </div>
 
-          {pokemonError && (
-            <div style={{ color: "red", margin: "10px 0" }}>{pokemonError}</div>
-          )}
+            {/* Import Section */}
+            <div style={{ marginTop: "20px", marginBottom: "20px" }}>
+              <h4>Import Team</h4>
+              <p style={{ fontSize: "14px", color: "#666" }}>
+                Paste team data in JSON or Pokemon Showdown format
+              </p>
 
-          {pokemonData && (
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "20px",
-                background: "white",
-                borderRadius: "8px",
-                textAlign: "left",
-                maxWidth: "600px",
-                marginLeft: "auto",
-                marginRight: "auto",
-              }}
-            >
-              <h3>
-                {pokemonData.displayName} #{pokemonData.id}
-              </h3>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="Paste team data here..."
+                style={{
+                  width: "100%",
+                  height: "150px",
+                  padding: "10px",
+                  fontSize: "14px",
+                  fontFamily: "monospace",
+                  borderRadius: "4px",
+                  border: "1px solid #ccc",
+                  marginBottom: "10px",
+                }}
+              />
 
-              {pokemonData.isModified && (
+              <button
+                onClick={handleImportTeam}
+                disabled={!importText.trim()}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  cursor: importText.trim() ? "pointer" : "not-allowed",
+                  backgroundColor: importText.trim() ? "#4caf50" : "#ccc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                }}
+              >
+                Import Team
+              </button>
+
+              {importStatus && (
                 <div
                   style={{
-                    background: "#fff3cd",
+                    marginTop: "10px",
                     padding: "10px",
+                    background: importStatus.includes("❌")
+                      ? "#ffebee"
+                      : "#e8f5e9",
+                    color: importStatus.includes("❌") ? "#c62828" : "#2e7d32",
                     borderRadius: "4px",
-                    marginBottom: "10px",
-                    color: "#856404",
+                    fontSize: "14px",
+                    whiteSpace: "pre-wrap",
                   }}
                 >
-                  ⚠️ Modified in Run & Bun:{" "}
-                  {pokemonData.modifications || "Stats/moves changed"}
+                  {importStatus}
+                </div>
+              )}
+            </div>
+
+            {/* Export Section */}
+            <div style={{ marginTop: "20px" }}>
+              <h4>Export Team</h4>
+              <p style={{ fontSize: "14px", color: "#666" }}>
+                Export your team to share or save
+              </p>
+
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ marginRight: "20px" }}>
+                  <input
+                    type="radio"
+                    value="showdown"
+                    checked={exportFormat === "showdown"}
+                    onChange={() => setExportFormat("showdown")}
+                    style={{ marginRight: "5px" }}
+                  />
+                  Pokemon Showdown Format
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    value="json"
+                    checked={exportFormat === "json"}
+                    onChange={() => setExportFormat("json")}
+                    style={{ marginRight: "5px" }}
+                  />
+                  JSON Format
+                </label>
+              </div>
+
+              <button
+                onClick={handleExportTeam}
+                disabled={currentTeam.length === 0}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  cursor: currentTeam.length > 0 ? "pointer" : "not-allowed",
+                  backgroundColor: currentTeam.length > 0 ? "#646cff" : "#ccc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  marginRight: "10px",
+                }}
+              >
+                Export Team
+              </button>
+
+              {exportText && (
+                <button
+                  onClick={handleCopyExport}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    backgroundColor: "#4caf50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                  }}
+                >
+                  Copy to Clipboard
+                </button>
+              )}
+
+              {exportStatus && (
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "10px",
+                    background: exportStatus.includes("❌")
+                      ? "#ffebee"
+                      : "#e8f5e9",
+                    color: exportStatus.includes("❌") ? "#c62828" : "#2e7d32",
+                    borderRadius: "4px",
+                    fontSize: "14px",
+                  }}
+                >
+                  {exportStatus}
                 </div>
               )}
 
-              <div style={{ marginBottom: "15px" }}>
-                <strong>Types:</strong> {pokemonData.types.join(", ")}
-              </div>
-
-              <div style={{ marginBottom: "15px" }}>
-                <strong>Base Stats:</strong>
-                <ul style={{ marginTop: "5px" }}>
-                  <li>HP: {pokemonData.baseStats.hp}</li>
-                  <li>Attack: {pokemonData.baseStats.atk}</li>
-                  <li>Defense: {pokemonData.baseStats.def}</li>
-                  <li>Sp. Atk: {pokemonData.baseStats.spa}</li>
-                  <li>Sp. Def: {pokemonData.baseStats.spd}</li>
-                  <li>Speed: {pokemonData.baseStats.spe}</li>
-                  <li>
-                    <strong>Total:</strong>{" "}
-                    {Object.values(pokemonData.baseStats).reduce(
-                      (a, b) => a + b,
-                      0,
-                    )}
-                  </li>
-                </ul>
-              </div>
-
-              <div style={{ marginBottom: "15px" }}>
-                <strong>Abilities:</strong> {pokemonData.abilities.join(", ")}
-              </div>
-
-              <div>
-                <strong>Available Moves:</strong> {pokemonData.learnset.length}{" "}
-                moves
-                <div
+              {exportText && (
+                <textarea
+                  value={exportText}
+                  readOnly
                   style={{
-                    marginTop: "5px",
-                    fontSize: "12px",
-                    color: "#666",
-                    maxHeight: "100px",
-                    overflowY: "auto",
+                    width: "100%",
+                    height: "200px",
+                    padding: "10px",
+                    fontSize: "14px",
+                    fontFamily: "monospace",
+                    borderRadius: "4px",
+                    border: "1px solid #ccc",
+                    marginTop: "10px",
+                    backgroundColor: "#f9f9f9",
                   }}
-                >
-                  {pokemonData.learnset.slice(0, 20).join(", ")}
-                  {pokemonData.learnset.length > 20 && "..."}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Pokemon Search Section */}
+          <div
+            style={{
+              padding: "20px",
+              background: "white",
+              borderRadius: "8px",
+            }}
+          >
+            <h3>Pokemon Data Lookup</h3>
+            <p>Search for a Pokemon to load its data from PokeAPI</p>
+
+            <div style={{ margin: "20px 0" }}>
+              <input
+                type="text"
+                value={pokemonSearch}
+                onChange={(e) => setPokemonSearch(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && searchForPokemon()}
+                placeholder="Enter Pokemon name (e.g., charizard)"
+                style={{
+                  padding: "10px",
+                  fontSize: "16px",
+                  width: "300px",
+                  marginRight: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid #ccc",
+                }}
+              />
+              <button
+                onClick={searchForPokemon}
+                disabled={isLoadingPokemon}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "16px",
+                  cursor: isLoadingPokemon ? "wait" : "pointer",
+                  backgroundColor: isLoadingPokemon ? "#ccc" : "#646cff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                }}
+              >
+                {isLoadingPokemon ? "Loading..." : "Search"}
+              </button>
+            </div>
+
+            {pokemonError && (
+              <div style={{ color: "red", margin: "10px 0" }}>
+                {pokemonError}
+              </div>
+            )}
+
+            {pokemonData && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "20px",
+                  background: "white",
+                  borderRadius: "8px",
+                  textAlign: "left",
+                  maxWidth: "600px",
+                  marginLeft: "auto",
+                  marginRight: "auto",
+                }}
+              >
+                <h3>
+                  {pokemonData.displayName} #{pokemonData.id}
+                </h3>
+
+                {pokemonData.isModified && (
+                  <div
+                    style={{
+                      background: "#fff3cd",
+                      padding: "10px",
+                      borderRadius: "4px",
+                      marginBottom: "10px",
+                      color: "#856404",
+                    }}
+                  >
+                    ⚠️ Modified in Run & Bun:{" "}
+                    {pokemonData.modifications || "Stats/moves changed"}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: "15px" }}>
+                  <strong>Types:</strong> {pokemonData.types.join(", ")}
+                </div>
+
+                <div style={{ marginBottom: "15px" }}>
+                  <strong>Base Stats:</strong>
+                  <ul style={{ marginTop: "5px" }}>
+                    <li>HP: {pokemonData.baseStats.hp}</li>
+                    <li>Attack: {pokemonData.baseStats.atk}</li>
+                    <li>Defense: {pokemonData.baseStats.def}</li>
+                    <li>Sp. Atk: {pokemonData.baseStats.spa}</li>
+                    <li>Sp. Def: {pokemonData.baseStats.spd}</li>
+                    <li>Speed: {pokemonData.baseStats.spe}</li>
+                    <li>
+                      <strong>Total:</strong>{" "}
+                      {Object.values(pokemonData.baseStats).reduce(
+                        (a, b) => a + b,
+                        0,
+                      )}
+                    </li>
+                  </ul>
+                </div>
+
+                <div style={{ marginBottom: "15px" }}>
+                  <strong>Abilities:</strong> {pokemonData.abilities.join(", ")}
+                </div>
+
+                <div>
+                  <strong>Available Moves:</strong>{" "}
+                  {pokemonData.learnset.length} moves
+                  <div
+                    style={{
+                      marginTop: "5px",
+                      fontSize: "12px",
+                      color: "#666",
+                      maxHeight: "100px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {pokemonData.learnset.slice(0, 20).join(", ")}
+                    {pokemonData.learnset.length > 20 && "..."}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -54,7 +54,24 @@ function generatePlayerActions(
   const actions: BattleAction[] = [];
   const activeMon = state.playerActive;
 
-  // Move actions
+  // If active Pokemon is fainted, MUST switch (no move actions allowed)
+  if (activeMon.currentHp <= 0) {
+    const aliveCount = state.playerTeam.filter((p) => p.currentHp > 0).length;
+    if (aliveCount > 0) {
+      state.playerTeam.forEach((mon, index) => {
+        if (mon.currentHp > 0 && mon !== state.playerActive) {
+          actions.push({
+            type: "switch",
+            targetIndex: index,
+            targetName: mon.species,
+          });
+        }
+      });
+    }
+    return actions; // Only switch actions when fainted
+  }
+
+  // Move actions (only if Pokemon is alive)
   activeMon.moves.forEach((move, index) => {
     if (activeMon.currentPP[index] > 0) {
       actions.push({

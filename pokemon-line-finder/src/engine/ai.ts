@@ -420,6 +420,55 @@ export function calculateAIDecision(
   aiTeam: PokemonInstance[],
   battleState: BattleState,
 ): AIDecision {
+  // If AI's active Pokemon is fainted, MUST switch immediately
+  if (aiMon.currentHp <= 0) {
+    const aliveCount = aiTeam.filter((p) => p.currentHp > 0).length;
+    if (aliveCount > 0) {
+      // Select first alive Pokemon that isn't the fainted one
+      const switchTargetIndex = aiTeam.findIndex(
+        (mon) => mon.currentHp > 0 && mon !== aiMon,
+      );
+      if (switchTargetIndex !== -1) {
+        return {
+          action: {
+            type: "switch",
+            targetIndex: switchTargetIndex,
+            targetName: aiTeam[switchTargetIndex].species,
+          },
+          scores: [],
+          chosenScore: {
+            pokemonIndex: switchTargetIndex,
+            pokemon: aiTeam[switchTargetIndex],
+            score: 1000,
+            reasoning: "Forced switch: Active Pokemon fainted",
+          },
+          willSwitch: true,
+        };
+      }
+    }
+    // If no alive Pokemon, battle should be over, but return default to avoid crash
+    return {
+      action: {
+        type: "move",
+        moveIndex: 0,
+        moveName: aiMon.moves[0].name,
+      },
+      scores: [],
+      chosenScore: {
+        move: aiMon.moves[0],
+        moveIndex: 0,
+        score: 0,
+        breakdown: {
+          baseScore: 0,
+          damageScore: 0,
+          randomVariation: 0,
+        },
+        reasoning: ["No alive Pokemon to switch to"],
+      },
+      willSwitch: false,
+    };
+  }
+
   const scores: AIScore[] = [];
 
   // Find highest damaging move first

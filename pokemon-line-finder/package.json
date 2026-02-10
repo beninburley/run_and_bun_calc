@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsx src/utils/testLineFinder.ts",
+    "test:verbose": "tsx src/utils/testLineFinder.ts | Write-Output",
+    "test:debug": "tsx src/utils/debugTest2.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
