@@ -508,7 +508,9 @@ export function calculateFullDamage(
 
   // Secondary effect chance
   let secondaryEffectChance: number | undefined;
-  if (move.statChanges && move.statChanges.length > 0) {
+  if (move.secondaryEffects && move.secondaryEffects.length > 0) {
+    secondaryEffectChance = move.secondaryEffects[0].chance;
+  } else if (move.statChanges && move.statChanges.length > 0) {
     secondaryEffectChance = move.statChanges[0].chance;
   } else if (move.statusChance) {
     secondaryEffectChance = move.statusChance.chance;
@@ -590,6 +592,7 @@ export function determineFirstMover(
   playerSpeed: number,
   opponentSpeed: number,
   battleState: BattleState,
+  rngMode: "random" | "worst-case" = "random",
 ): "player" | "opponent" {
   // Switches always go first
   if (playerAction === "switch" && opponentAction !== "switch") {
@@ -627,7 +630,10 @@ export function determineFirstMover(
   } else if (opponentSpeed > playerSpeed) {
     return "opponent";
   } else {
-    // Speed tie - AI sees this as them being faster (per AI logic)
-    return "opponent";
+    // Speed tie - worst-case resolves against player
+    if (rngMode === "worst-case") {
+      return "opponent";
+    }
+    return Math.random() < 0.5 ? "player" : "opponent";
   }
 }

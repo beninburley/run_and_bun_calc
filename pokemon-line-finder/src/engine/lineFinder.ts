@@ -54,6 +54,20 @@ function generatePlayerActions(
   const actions: BattleAction[] = [];
   const activeMon = state.playerActive;
 
+  if (activeMon.rechargeTurns && activeMon.rechargeTurns > 0) {
+    return [{ type: "recharge" }];
+  }
+
+  if (activeMon.chargingMove) {
+    return [
+      {
+        type: "move",
+        moveIndex: activeMon.chargingMove.moveIndex,
+        moveName: activeMon.chargingMove.moveName,
+      },
+    ];
+  }
+
   // If active Pokemon is fainted, MUST switch (no move actions allowed)
   if (activeMon.currentHp <= 0) {
     const aliveCount = state.playerTeam.filter((p) => p.currentHp > 0).length;
@@ -373,14 +387,18 @@ function searchLines(
             ? `Use ${turn.playerAction.moveName}`
             : turn.playerAction.type === "switch"
               ? `Switch to ${turn.playerAction.targetName}`
-              : "Use item";
+              : turn.playerAction.type === "recharge"
+                ? "Recharge"
+                : "Use item";
 
         const opponentActionDesc =
           turn.opponentAction.type === "move"
             ? `Opponent uses ${turn.opponentAction.moveName}`
             : turn.opponentAction.type === "switch"
               ? `Opponent switches to ${turn.opponentAction.targetName}`
-              : "Opponent uses item";
+              : turn.opponentAction.type === "recharge"
+                ? "Opponent recharges"
+                : "Opponent uses item";
 
         const firstAction =
           turn.firstMover === "player" ? playerActionDesc : opponentActionDesc;
@@ -440,6 +458,8 @@ function searchLines(
           );
         } else if (action.type === "switch") {
           console.log(`    - Switch to ${action.targetName}`);
+        } else if (action.type === "recharge") {
+          console.log("    - Recharge");
         }
       });
     }

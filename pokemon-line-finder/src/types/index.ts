@@ -75,6 +75,25 @@ export type MoveCategory = "physical" | "special" | "status";
 
 export type MoveDamageClass = "damage" | "damage-by-status" | "damage-heal";
 
+export type SecondaryEffect =
+  | {
+      type: "status";
+      status: Status;
+      chance: number; // 0-100
+      target?: "user" | "opponent";
+    }
+  | {
+      type: "stat";
+      stat: keyof StatModifiers;
+      stage: number; // -6 to +6
+      chance: number; // 0-100
+      target?: "user" | "opponent";
+    }
+  | {
+      type: "flinch";
+      chance: number; // 0-100
+    };
+
 export interface Move {
   name: string;
   type: PokemonType;
@@ -98,6 +117,7 @@ export interface Move {
     status: Status;
     chance: number;
   };
+  secondaryEffects?: SecondaryEffect[];
   weatherEffect?: Weather; // Sets weather when used
   terrainEffect?: Terrain; // Sets terrain when used
   hazardEffect?:
@@ -110,6 +130,11 @@ export interface Move {
 
   // Multi-hit
   hits?: number | [number, number]; // exact or range
+
+  // Multi-turn behavior
+  multiTurn?: {
+    kind: "charge" | "recharge" | "semi-invulnerable";
+  };
 
   // Special AI flags
   isHighCritMove?: boolean;
@@ -150,6 +175,19 @@ export interface PokemonInstance {
   currentHp: number;
   currentPP: number[]; // Parallel to moves array
   status: Status;
+  sleepTurnsRemaining?: number;
+  toxicCounter?: number;
+  rechargeTurns?: number;
+  chargingMove?: {
+    moveIndex: number;
+    moveName: string;
+    kind: "charge" | "semi-invulnerable";
+    turnsRemaining: number;
+  };
+  isSemiInvulnerable?: boolean;
+  lockedMoveIndex?: number;
+  lockedMoveReason?: "charge" | "recharge" | "choice";
+  lastMoveIndex?: number;
   statModifiers: StatModifiers;
 
   // Nuzlocke tracking
@@ -228,7 +266,7 @@ export interface BattleState {
 // Action Types
 // ============================================================================
 
-export type ActionType = "move" | "switch" | "item";
+export type ActionType = "move" | "switch" | "item" | "recharge";
 
 export interface MoveAction {
   type: "move";
@@ -248,7 +286,15 @@ export interface ItemAction {
   targetIndex?: number; // For items used on specific Pokemon
 }
 
-export type BattleAction = MoveAction | SwitchAction | ItemAction;
+export interface RechargeAction {
+  type: "recharge";
+}
+
+export type BattleAction =
+  | MoveAction
+  | SwitchAction
+  | ItemAction
+  | RechargeAction;
 
 // ============================================================================
 // Damage Calculation Types

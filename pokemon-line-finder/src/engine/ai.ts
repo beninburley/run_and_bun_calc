@@ -26,8 +26,25 @@ import {
  * Roll for AI score randomization
  * ~80% chance of 0, ~20% chance of +2
  */
-function getAIRandomBonus(): number {
+function getAIRandomBonus(rngMode: "random" | "worst-case"): number {
+  if (rngMode === "worst-case") {
+    return AI_SCORE_RANDOM_BONUS;
+  }
+
   return Math.random() < AI_SCORE_RANDOM_CHANCE ? AI_SCORE_RANDOM_BONUS : 0;
+}
+
+function chooseHigherScore(
+  rngMode: "random" | "worst-case",
+  lowScore: number,
+  highScore: number,
+  lowChance: number,
+): number {
+  if (rngMode === "worst-case") {
+    return Math.max(lowScore, highScore);
+  }
+
+  return Math.random() < lowChance ? lowScore : highScore;
 }
 
 /**
@@ -81,6 +98,7 @@ function scoreDamagingMove(
   playerMon: PokemonInstance,
   battleState: BattleState,
   highestDamageIndex: number,
+  rngMode: "random" | "worst-case",
 ): AIScore {
   const reasoning: string[] = [];
   let baseScore = 0;
@@ -89,7 +107,7 @@ function scoreDamagingMove(
   let speedBonus = 0;
   let specialBonus = 0;
 
-  const randomVariation = getAIRandomBonus();
+  const randomVariation = getAIRandomBonus(rngMode);
 
   const damageCalc = calculateFullDamage(move, aiMon, playerMon, battleState);
   const isKill = damageCalc.damageRange.possibleKO;
@@ -130,7 +148,7 @@ function scoreDamagingMove(
 
   // High crit + super effective
   if (move.critChance === "high" && damageCalc.damageRange.maxPercent > 100) {
-    if (Math.random() < 0.5) {
+    if (rngMode === "worst-case" || Math.random() < 0.5) {
       speedBonus += AI_SCORES.HIGH_CRIT_SE_BONUS;
       reasoning.push(
         `High crit rate + super effective: +${AI_SCORES.HIGH_CRIT_SE_BONUS}`,
@@ -180,6 +198,7 @@ function scoreStatusMove(
   aiMon: PokemonInstance,
   playerMon: PokemonInstance,
   battleState: BattleState,
+  rngMode: "random" | "worst-case",
 ): AIScore {
   const reasoning: string[] = [];
   let score = AI_SCORES.STATUS_MOVE_DEFAULT;
@@ -189,16 +208,20 @@ function scoreStatusMove(
   // Stealth Rock
   if (moveName === "stealth rock") {
     if (battleState.turn === 1) {
-      score =
-        Math.random() < 0.25
-          ? AI_SCORES.HAZARD_FIRST_TURN_LOW
-          : AI_SCORES.HAZARD_FIRST_TURN_HIGH;
+      score = chooseHigherScore(
+        rngMode,
+        AI_SCORES.HAZARD_FIRST_TURN_LOW,
+        AI_SCORES.HAZARD_FIRST_TURN_HIGH,
+        0.25,
+      );
       reasoning.push(`Stealth Rock on first turn: ${score}`);
     } else {
-      score =
-        Math.random() < 0.25
-          ? AI_SCORES.HAZARD_LATER_LOW
-          : AI_SCORES.HAZARD_LATER_HIGH;
+      score = chooseHigherScore(
+        rngMode,
+        AI_SCORES.HAZARD_LATER_LOW,
+        AI_SCORES.HAZARD_LATER_HIGH,
+        0.25,
+      );
       reasoning.push(`Stealth Rock later: ${score}`);
     }
   }
@@ -206,15 +229,19 @@ function scoreStatusMove(
   // Spikes / Toxic Spikes
   else if (moveName === "spikes" || moveName === "toxic spikes") {
     if (battleState.turn === 1) {
-      score =
-        Math.random() < 0.25
-          ? AI_SCORES.HAZARD_FIRST_TURN_LOW
-          : AI_SCORES.HAZARD_FIRST_TURN_HIGH;
+      score = chooseHigherScore(
+        rngMode,
+        AI_SCORES.HAZARD_FIRST_TURN_LOW,
+        AI_SCORES.HAZARD_FIRST_TURN_HIGH,
+        0.25,
+      );
     } else {
-      score =
-        Math.random() < 0.25
-          ? AI_SCORES.HAZARD_LATER_LOW
-          : AI_SCORES.HAZARD_LATER_HIGH;
+      score = chooseHigherScore(
+        rngMode,
+        AI_SCORES.HAZARD_LATER_LOW,
+        AI_SCORES.HAZARD_LATER_HIGH,
+        0.25,
+      );
     }
 
     // Already has layers penalty
@@ -234,9 +261,9 @@ function scoreStatusMove(
   // Sticky Web
   else if (moveName === "sticky web") {
     if (battleState.turn === 1) {
-      score = Math.random() < 0.25 ? 9 : 12;
+      score = chooseHigherScore(rngMode, 9, 12, 0.25);
     } else {
-      score = Math.random() < 0.25 ? 6 : 9;
+      score = chooseHigherScore(rngMode, 6, 9, 0.25);
     }
     reasoning.push(`Sticky Web score: ${score}`);
   }
@@ -350,7 +377,7 @@ function scoreStatusMove(
       score = 7;
       reasoning.push(`Low HP, prioritize recovery: 7`);
     } else {
-      score = Math.random() < 0.5 ? 7 : 5;
+      score = chooseHigherScore(rngMode, 7, 5, 0.5);
       reasoning.push(`Medium HP, recovery: ${score}`);
     }
   }
@@ -419,6 +446,7 @@ export function calculateAIDecision(
   playerMon: PokemonInstance,
   aiTeam: PokemonInstance[],
   battleState: BattleState,
+  rngMode: "random" | "worst-case" = "random",
 ): AIDecision {
   // If AI's active Pokemon is fainted, MUST switch immediately
   if (aiMon.currentHp <= 0) {
@@ -481,7 +509,9 @@ export function calculateAIDecision(
   // Score each move
   aiMon.moves.forEach((move, index) => {
     if (move.category === "status") {
-      scores.push(scoreStatusMove(move, index, aiMon, playerMon, battleState));
+      scores.push(
+        scoreStatusMove(move, index, aiMon, playerMon, battleState, rngMode),
+      );
     } else {
       scores.push(
         scoreDamagingMove(
@@ -491,6 +521,7 @@ export function calculateAIDecision(
           playerMon,
           battleState,
           highestDamageIndex,
+          rngMode,
         ),
       );
     }
@@ -501,7 +532,30 @@ export function calculateAIDecision(
   const topScores = scores.filter((s) => s.score === maxScore);
 
   // AI randomly selects among tied moves
-  const chosenScore = topScores[Math.floor(Math.random() * topScores.length)];
+  let chosenScore: AIScore;
+  if (rngMode === "worst-case") {
+    chosenScore = [...topScores].sort((a, b) => {
+      const aDamage =
+        a.move.category === "status"
+          ? -1
+          : calculateFullDamage(a.move, aiMon, playerMon, battleState)
+              .damageRange.max;
+      const bDamage =
+        b.move.category === "status"
+          ? -1
+          : calculateFullDamage(b.move, aiMon, playerMon, battleState)
+              .damageRange.max;
+      if (aDamage !== bDamage) {
+        return bDamage - aDamage;
+      }
+      if (a.move.category !== b.move.category) {
+        return a.move.category === "status" ? 1 : -1;
+      }
+      return a.moveIndex - b.moveIndex;
+    })[0];
+  } else {
+    chosenScore = topScores[Math.floor(Math.random() * topScores.length)];
+  }
 
   // Check if AI will switch (simplified for MVP)
   const willSwitch = shouldAISwitch(
@@ -510,6 +564,7 @@ export function calculateAIDecision(
     aiTeam,
     maxScore,
     battleState,
+    rngMode,
   );
 
   let action: BattleAction;
@@ -551,6 +606,7 @@ function shouldAISwitch(
   aiTeam: PokemonInstance[],
   bestMoveScore: number,
   battleState: BattleState,
+  rngMode: "random" | "worst-case",
 ): boolean {
   // Singles only
   // TODO: AI never switches in doubles except niche cases
@@ -594,6 +650,10 @@ function shouldAISwitch(
   }
 
   // All conditions met - 50% chance to switch
+  if (rngMode === "worst-case") {
+    return true;
+  }
+
   return Math.random() < AI_SCORES.SWITCH_CHANCE;
 }
 

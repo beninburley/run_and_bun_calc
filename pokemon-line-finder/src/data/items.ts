@@ -9,6 +9,8 @@ export type ItemEffect =
   | "stat-boost"
   | "status-heal"
   | "berry-heal"
+  | "end-turn-heal"
+  | "end-turn-status"
   | "recoil-damage"
   | "choice-lock"
   | "life-orb"
@@ -30,6 +32,13 @@ export interface Item {
   // HP thresholds for berries
   hpThreshold?: number;
   healAmount?: number;
+  healPercent?: number;
+  isBerry?: boolean;
+  endTurnHealPercent?: number;
+  endTurnDamagePercent?: number;
+  endTurnHealIfType?: string;
+  statusOnTurnEnd?: "burn" | "poison" | "badly-poison";
+  curesStatusOnTurnEnd?: boolean;
   // Recoil
   recoilPercent?: number;
   // Special flags
@@ -205,9 +214,17 @@ export const ITEMS: Record<string, Item> = {
   // Defensive items
   Leftovers: {
     name: "Leftovers",
-    effect: "berry-heal",
+    effect: "end-turn-heal",
     description: "Restores 1/16 of max HP each turn",
-    healAmount: 6.25, // percentage
+    endTurnHealPercent: 6.25,
+  },
+  "Black Sludge": {
+    name: "Black Sludge",
+    effect: "end-turn-heal",
+    description: "Heals Poison types, damages others each turn",
+    endTurnHealPercent: 6.25,
+    endTurnDamagePercent: 12.5,
+    endTurnHealIfType: "Poison",
   },
   "Focus Sash": {
     name: "Focus Sash",
@@ -228,7 +245,8 @@ export const ITEMS: Record<string, Item> = {
     effect: "berry-heal",
     description: "Restores 25% HP when HP falls below 50%",
     hpThreshold: 50,
-    healAmount: 25,
+    healPercent: 25,
+    isBerry: true,
   },
   "Oran Berry": {
     name: "Oran Berry",
@@ -236,6 +254,26 @@ export const ITEMS: Record<string, Item> = {
     description: "Restores 10 HP when HP falls below 50%",
     hpThreshold: 50,
     healAmount: 10, // flat amount
+    isBerry: true,
+  },
+  "Lum Berry": {
+    name: "Lum Berry",
+    effect: "status-heal",
+    description: "Cures any status condition once",
+    curesStatusOnTurnEnd: true,
+    isBerry: true,
+  },
+  "Toxic Orb": {
+    name: "Toxic Orb",
+    effect: "end-turn-status",
+    description: "Badly poisons the holder at end of turn",
+    statusOnTurnEnd: "badly-poison",
+  },
+  "Flame Orb": {
+    name: "Flame Orb",
+    effect: "end-turn-status",
+    description: "Burns the holder at end of turn",
+    statusOnTurnEnd: "burn",
   },
 
   // Resist Berries - Reduces super effective damage

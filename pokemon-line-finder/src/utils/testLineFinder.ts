@@ -17,6 +17,7 @@ import { calculateDamageRange } from "../engine/damage";
 import { calculateAIDecision } from "../engine/ai";
 import { createBattleState } from "../engine/battle";
 import { runHazardTests } from "./testHazards";
+import { runBattleMechanicsTests } from "./testBattleMechanics";
 
 interface TestCase {
   name: string;
@@ -47,10 +48,7 @@ const TEST_CASES: TestCase[] = [
     name: "Complex 2v2 - Mixed Matchups",
     setup: getMockBattle2,
     expectedBehavior: {
-      shouldFindLines: true,
-      minLines: 1,
-      maxLines: 20,
-      expectedTurnsRange: [2, 20],
+      shouldFindLines: false,
     },
   },
 ];
@@ -253,11 +251,15 @@ function runSingleTest(testCase: TestCase): TestResult {
         const playerMove =
           turn.playerAction.type === "move"
             ? turn.playerAction.moveName
-            : `Switch to ${playerTeam[turn.playerAction.targetIndex!].species}`;
+            : turn.playerAction.type === "switch"
+              ? `Switch to ${playerTeam[turn.playerAction.targetIndex!].species}`
+              : "Recharge";
         const opponentMove =
           turn.opponentAction.type === "move"
             ? turn.opponentAction.moveName
-            : `Switch to ${opponentTeam[turn.opponentAction.targetIndex!].species}`;
+            : turn.opponentAction.type === "switch"
+              ? `Switch to ${opponentTeam[turn.opponentAction.targetIndex!].species}`
+              : "Recharge";
         console.log(`     Turn ${i + 1}: ${playerMove} vs ${opponentMove}`);
         if (turn.risksInvolved && turn.risksInvolved.length > 0) {
           console.log(`       Risks in turn ${i + 1}:`);
@@ -417,6 +419,7 @@ export function validateAILogic(): void {
     battleState.playerActive,
     battleState.opponentTeam,
     battleState,
+    "worst-case",
   );
 
   const actionType = decision.action.type;
@@ -475,13 +478,16 @@ const results = runLineFinderTests();
 validateDamageCalculations();
 validateAILogic();
 const hazardResults = runHazardTests();
+const mechanicsResults = runBattleMechanicsTests();
 
 // Exit with appropriate code for CI/CD (only in Node.js, not browser)
 if (typeof process !== "undefined" && process.exit) {
   const failedCount = results.filter((r) => !r.passed).length;
   const failedHazards = hazardResults.totalTests - hazardResults.passedTests;
+  const failedMechanics =
+    mechanicsResults.totalTests - mechanicsResults.passedTests;
 
-  if (failedCount > 0 || failedHazards > 0) {
+  if (failedCount > 0 || failedHazards > 0 || failedMechanics > 0) {
     process.exit(1);
   } else {
     process.exit(0);

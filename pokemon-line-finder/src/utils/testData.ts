@@ -17,6 +17,7 @@ export function createMove(
   power: number,
   accuracy: number = 100,
   priority: number = 0,
+  extras: Partial<Move> = {},
 ): Move {
   return {
     name,
@@ -27,6 +28,7 @@ export function createMove(
     pp: 16,
     priority,
     critChance: "normal",
+    ...extras,
   };
 }
 
@@ -80,6 +82,14 @@ export function createTestPokemon(
     currentHp: stats.hp,
     currentPP: moves.map((m) => m.pp),
     status: "healthy",
+    sleepTurnsRemaining: 0,
+    toxicCounter: 0,
+    rechargeTurns: 0,
+    chargingMove: undefined,
+    isSemiInvulnerable: false,
+    lockedMoveIndex: undefined,
+    lockedMoveReason: undefined,
+    lastMoveIndex: undefined,
     statModifiers: createInitialStatModifiers(),
     canDie: false,
   };
@@ -100,7 +110,9 @@ export function getMockBattle1(): {
     ["Fire", "Flying"],
     [
       createMove("Flamethrower", "Fire", "special", 90, 100),
-      createMove("Air Slash", "Flying", "special", 75, 95),
+      createMove("Air Slash", "Flying", "special", 75, 95, 0, {
+        secondaryEffects: [{ type: "flinch", chance: 30 }],
+      }),
       createMove("Dragon Pulse", "Dragon", "special", 85, 100),
       createMove("Heat Wave", "Fire", "special", 95, 90),
     ],
@@ -115,10 +127,18 @@ export function getMockBattle1(): {
     { hp: 80, atk: 82, def: 83, spa: 100, spd: 100, spe: 80 },
     ["Grass", "Poison"],
     [
-      createMove("Sludge Bomb", "Poison", "special", 90, 100),
+      createMove("Sludge Bomb", "Poison", "special", 90, 100, 0, {
+        secondaryEffects: [
+          { type: "status", status: "poison", chance: 30, target: "opponent" },
+        ],
+      }),
       createMove("Energy Ball", "Grass", "special", 90, 100),
       createMove("Earthquake", "Ground", "physical", 100, 100),
-      createMove("Sleep Powder", "Grass", "status", 0, 75),
+      createMove("Sleep Powder", "Grass", "status", 0, 75, 0, {
+        secondaryEffects: [
+          { type: "status", status: "sleep", chance: 100, target: "opponent" },
+        ],
+      }),
     ],
     "Overgrow",
     "Sitrus Berry",
@@ -177,7 +197,9 @@ export function getMockBattle2(): {
     [
       createMove("Iron Tail", "Steel", "physical", 100, 75),
       createMove("Earthquake", "Ground", "physical", 100, 100),
-      createMove("Rock Slide", "Rock", "physical", 75, 90),
+      createMove("Rock Slide", "Rock", "physical", 75, 90, 0, {
+        secondaryEffects: [{ type: "flinch", chance: 30 }],
+      }),
       createMove("Stealth Rock", "Rock", "status", 0, 100),
     ],
     "Sturdy",
