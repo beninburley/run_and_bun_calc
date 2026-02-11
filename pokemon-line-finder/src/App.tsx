@@ -11,6 +11,7 @@ import {
 import { runItemTests } from "./utils/testItems";
 import { runWeatherTests } from "./utils/testWeather";
 import { runTerrainTests } from "./utils/testTerrain";
+import { runHazardTests } from "./utils/testHazards";
 import { getPokemonInfo } from "./data/pokemonService";
 import type { CompletePokemonData } from "./data/pokemonService";
 import {
@@ -138,6 +139,8 @@ function App() {
       runWeatherTests();
       output += "\n";
       runTerrainTests();
+      output += "\n";
+      runHazardTests();
 
       setTestOutput(output);
     } catch (error) {

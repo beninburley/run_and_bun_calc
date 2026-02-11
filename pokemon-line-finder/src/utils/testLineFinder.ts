@@ -12,6 +12,7 @@ import { LineOfPlay, PokemonInstance } from "../types";
 import { calculateDamageRange } from "../engine/damage";
 import { calculateAIDecision } from "../engine/ai";
 import { createBattleState } from "../engine/battle";
+import { runHazardTests } from "./testHazards";
 
 interface TestCase {
   name: string;
@@ -390,11 +391,14 @@ export const tests = {
 const results = runLineFinderTests();
 validateDamageCalculations();
 validateAILogic();
+const hazardResults = runHazardTests();
 
 // Exit with appropriate code for CI/CD (only in Node.js, not browser)
 if (typeof process !== "undefined" && process.exit) {
   const failedCount = results.filter((r) => !r.passed).length;
-  if (failedCount > 0) {
+  const failedHazards = hazardResults.totalTests - hazardResults.passedTests;
+
+  if (failedCount > 0 || failedHazards > 0) {
     process.exit(1);
   } else {
     process.exit(0);
