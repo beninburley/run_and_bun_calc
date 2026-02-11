@@ -23,6 +23,7 @@ import { calculateAIDecision } from "../engine/ai";
 import { createBattleState } from "../engine/battle";
 import { runHazardTests } from "./testHazards";
 import { runBattleMechanicsTests } from "./testBattleMechanics";
+import { runDataLayerTests } from "./testDataLayer";
 
 interface TestCase {
   name: string;
@@ -543,6 +544,7 @@ validateDamageCalculations();
 validateAILogic();
 const hazardResults = runHazardTests();
 const mechanicsResults = runBattleMechanicsTests();
+const dataLayerResults = runDataLayerTests();
 
 // Exit with appropriate code for CI/CD (only in Node.js, not browser)
 if (typeof process !== "undefined" && process.exit) {
@@ -550,8 +552,15 @@ if (typeof process !== "undefined" && process.exit) {
   const failedHazards = hazardResults.totalTests - hazardResults.passedTests;
   const failedMechanics =
     mechanicsResults.totalTests - mechanicsResults.passedTests;
+  const failedDataLayer =
+    dataLayerResults.totalTests - dataLayerResults.passedTests;
 
-  if (failedCount > 0 || failedHazards > 0 || failedMechanics > 0) {
+  if (
+    failedCount > 0 ||
+    failedHazards > 0 ||
+    failedMechanics > 0 ||
+    failedDataLayer > 0
+  ) {
     process.exit(1);
   } else {
     process.exit(0);

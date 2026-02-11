@@ -1,4 +1,5 @@
-import { PokemonInstance, Move, Stats, PokemonType } from "../types";
+import { PokemonInstance, Stats, PokemonType } from "../types";
+import { buildPokemon, MoveSpec, PokemonSpec } from "./normalize";
 
 /**
  * Trainer data for Run & Bun
@@ -27,7 +28,7 @@ function createPokemon(
   moves: string[],
   ability: string,
   item: string = "",
-  natureStats: {
+  _natureStats: {
     plusStat?: "hp" | "atk" | "def" | "spa" | "spd" | "spe";
     minusStat?: "hp" | "atk" | "def" | "spa" | "spd" | "spe";
   } = {},
@@ -54,19 +55,17 @@ function createPokemon(
     ...ivs,
   };
 
-  const movesArray: Move[] = moves.map((moveName) => ({
+  const movesArray: MoveSpec[] = moves.map((moveName) => ({
     name: moveName,
     type: "Normal" as PokemonType,
-    category: "physical" as const,
+    category: "physical",
     power: 50,
-    basePower: 50,
     accuracy: 100,
     pp: 10,
     priority: 0,
-    critChance: "normal" as const,
+    critChance: "normal",
   }));
 
-  // Placeholder stats - should be calculated properly
   const placeholderStats: Stats = {
     hp: 100,
     atk: 80,
@@ -76,35 +75,21 @@ function createPokemon(
     spe: 80,
   };
 
-  return {
+  const spec: PokemonSpec = {
     species,
     level,
     ability,
-    item,
-    nature: {
-      name: "Hardy",
-      ...natureStats,
-    },
-    evs: defaultEVs,
+    item: item || undefined,
+    nature: "Hardy",
     ivs: defaultIVs,
+    evs: defaultEVs,
     baseStats: placeholderStats,
-    stats: placeholderStats,
-    types: ["Normal"] as [PokemonType],
+    types: ["Normal"],
     moves: movesArray,
-    currentHp: 100,
-    currentPP: movesArray.map((m) => m.pp),
-    status: "healthy" as const,
-    statModifiers: {
-      atk: 0,
-      def: 0,
-      spa: 0,
-      spd: 0,
-      spe: 0,
-      accuracy: 0,
-      evasion: 0,
-    },
     canDie: true,
   };
+
+  return buildPokemon(spec);
 }
 
 // ========================================

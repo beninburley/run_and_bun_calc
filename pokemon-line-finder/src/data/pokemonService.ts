@@ -17,6 +17,7 @@ import {
 import { NATURES } from "./constants";
 import { calculateStats } from "../engine/damage";
 import { createInitialStatModifiers } from "../engine/battle";
+import { buildMove, normalizeMoveData } from "./normalize";
 
 // ============================================================================
 // Types
@@ -110,11 +111,12 @@ export async function createPokemonInstance(
     validMoves.map(async (moveName) => {
       try {
         const moveData: MoveData = await fetchMove(moveName);
-        return convertMoveDataToMove(moveData);
+        const moveSpec = normalizeMoveData(moveData);
+        return buildMove(moveSpec);
       } catch (error) {
         console.error(`Error loading move ${moveName}:`, error);
         // Return a basic placeholder move if fetch fails
-        return {
+        return buildMove({
           name: moveName,
           type: "Normal" as PokemonType,
           category: "physical",
@@ -122,8 +124,8 @@ export async function createPokemonInstance(
           accuracy: 100,
           pp: 20,
           priority: 0,
-          critChance: "normal" as const,
-        };
+          critChance: "normal",
+        });
       }
     }),
   );
@@ -194,18 +196,6 @@ export async function createPokemonInstance(
 /**
  * Convert MoveData from PokeAPI to our Move type
  */
-function convertMoveDataToMove(moveData: MoveData): Move {
-  return {
-    name: moveData.displayName,
-    type: moveData.type,
-    category: moveData.category,
-    power: moveData.power,
-    accuracy: moveData.accuracy,
-    pp: moveData.pp,
-    priority: moveData.priority,
-    critChance: "normal", // Default, can be enhanced based on move effects
-  };
-}
 
 /**
  * Create multiple Pokemon instances in parallel

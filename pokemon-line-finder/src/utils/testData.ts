@@ -6,6 +6,12 @@ import { PokemonInstance, Move, Stats, PokemonType } from "../types";
 import { NATURES } from "../data/constants";
 import { createInitialStatModifiers } from "../engine/battle";
 import { calculateStats } from "../engine/damage";
+import {
+  buildMove,
+  buildPokemon,
+  MoveSpec,
+  PokemonSpec,
+} from "../data/normalize";
 
 /**
  * Create a basic attacking move
@@ -19,7 +25,7 @@ export function createMove(
   priority: number = 0,
   extras: Partial<Move> = {},
 ): Move {
-  return {
+  const spec: MoveSpec = {
     name,
     type,
     category,
@@ -28,8 +34,20 @@ export function createMove(
     pp: 16,
     priority,
     critChance: "normal",
-    ...extras,
+    recoil: extras.recoil,
+    drain: extras.drain,
+    flinchChance: extras.flinchChance,
+    statChanges: extras.statChanges,
+    statusChance: extras.statusChance,
+    secondaryEffects: extras.secondaryEffects,
+    weatherEffect: extras.weatherEffect,
+    terrainEffect: extras.terrainEffect,
+    hazardEffect: extras.hazardEffect,
+    hits: extras.hits,
+    multiTurn: extras.multiTurn,
   };
+
+  return buildMove(spec);
 }
 
 /**
@@ -44,7 +62,6 @@ export function createTestPokemon(
   ability: string = "Overgrow",
   item?: string,
 ): PokemonInstance {
-  // Use max IVs and neutral EVs for simplicity
   const ivs: Stats = {
     hp: 31,
     atk: 31,
@@ -64,35 +81,48 @@ export function createTestPokemon(
   };
 
   const nature = NATURES.Adamant;
-
   const stats = calculateStats(baseStats, level, ivs, evs, nature);
 
-  return {
+  const spec: PokemonSpec = {
     species,
     level,
     baseStats,
-    ivs,
-    evs,
-    nature,
-    stats,
+    types,
+    moves: moves.map((move) => ({
+      name: move.name,
+      type: move.type,
+      category: move.category,
+      power: move.power,
+      accuracy: move.accuracy,
+      pp: move.pp,
+      priority: move.priority,
+      critChance: move.critChance,
+      recoil: move.recoil,
+      drain: move.drain,
+      flinchChance: move.flinchChance,
+      statChanges: move.statChanges,
+      statusChance: move.statusChance,
+      secondaryEffects: move.secondaryEffects,
+      weatherEffect: move.weatherEffect,
+      terrainEffect: move.terrainEffect,
+      hazardEffect: move.hazardEffect,
+      hits: move.hits,
+      multiTurn: move.multiTurn,
+    })),
     ability,
     item,
-    moves,
-    types,
-    currentHp: stats.hp,
-    currentPP: moves.map((m) => m.pp),
-    status: "healthy",
-    sleepTurnsRemaining: 0,
-    toxicCounter: 0,
-    rechargeTurns: 0,
-    chargingMove: undefined,
-    isSemiInvulnerable: false,
-    lockedMoveIndex: undefined,
-    lockedMoveReason: undefined,
-    lastMoveIndex: undefined,
-    statModifiers: createInitialStatModifiers(),
+    nature: nature.name,
+    ivs,
+    evs,
     canDie: false,
   };
+
+  const pokemon = buildPokemon(spec);
+  pokemon.stats = stats;
+  pokemon.currentHp = stats.hp;
+  pokemon.currentPP = moves.map((m) => m.pp);
+  pokemon.statModifiers = createInitialStatModifiers();
+  return pokemon;
 }
 
 /**

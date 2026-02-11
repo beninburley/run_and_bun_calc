@@ -16,11 +16,11 @@ This document tracks remaining work after Phase 1 mechanics.
 
 ## Phase 3 - Data Layer Unification
 
-- Replace mock move definitions with structured data schema.
-- Build importer for PokeAPI and Run & Bun data.
-- Normalize raw data into internal schema.
-- Keep separation between raw data and simulation logic.
-- Unify trainer data source and remove duplicate parsing paths.
+- [x] Replace mock move definitions with structured data schema.
+- [x] Build importer for PokeAPI and Run & Bun data.
+- [x] Normalize raw data into internal schema.
+- [x] Keep separation between raw data and simulation logic.
+- [x] Unify trainer data source and remove duplicate parsing paths.
 
 ## Phase 4 - Abilities and Items Expansion
 
