@@ -25,6 +25,7 @@ import { runHazardTests } from "./testHazards";
 import { runBattleMechanicsTests } from "./testBattleMechanics";
 import { runDataLayerTests } from "./testDataLayer";
 import { runLineSummaryTests } from "./testLineSummary";
+import { runIntegrationTests } from "./testIntegration";
 
 interface TestCase {
   name: string;
@@ -552,6 +553,7 @@ if (typeof process !== "undefined" && process?.argv && process?.exit) {
   const mechanicsResults = runBattleMechanicsTests();
   const dataLayerResults = runDataLayerTests();
   const lineSummaryResults = runLineSummaryTests();
+  const integrationResults = runIntegrationTests();
 
   console.log("\nCondensed Summary");
   console.log(
@@ -569,6 +571,9 @@ if (typeof process !== "undefined" && process?.argv && process?.exit) {
   console.log(
     `Line Summary: ${lineSummaryResults.passedTests}/${lineSummaryResults.totalTests}`,
   );
+  console.log(
+    `Integration: ${integrationResults.passedTests}/${integrationResults.totalTests}`,
+  );
 
   const failedCount = results.filter((r) => !r.passed).length;
   const failedHazards = hazardResults.totalTests - hazardResults.passedTests;
@@ -578,13 +583,16 @@ if (typeof process !== "undefined" && process?.argv && process?.exit) {
     dataLayerResults.totalTests - dataLayerResults.passedTests;
   const failedLineSummary =
     lineSummaryResults.totalTests - lineSummaryResults.passedTests;
+  const failedIntegration =
+    integrationResults.totalTests - integrationResults.passedTests;
 
   if (
     failedCount > 0 ||
     failedHazards > 0 ||
     failedMechanics > 0 ||
     failedDataLayer > 0 ||
-    failedLineSummary > 0
+    failedLineSummary > 0 ||
+    failedIntegration > 0
   ) {
     process.exit(1);
   } else {

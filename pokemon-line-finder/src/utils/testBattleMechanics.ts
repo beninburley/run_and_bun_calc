@@ -870,6 +870,87 @@ function testGutsBoostedDamage(): TestResult {
   };
 }
 
+function testItemActionHealing(): TestResult {
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const player = createTestPokemon(
+    "Eevee",
+    50,
+    { hp: 55, atk: 55, def: 50, spa: 45, spd: 65, spe: 55 },
+    ["Normal"],
+    [splash],
+  );
+  const opponent = createTestPokemon(
+    "Magikarp",
+    50,
+    { hp: 20, atk: 10, def: 55, spa: 15, spd: 20, spe: 80 },
+    ["Water"],
+    [splash],
+  );
+
+  player.currentHp = Math.floor(player.stats.hp * 0.4);
+  const startHp = player.currentHp;
+
+  const state = createBattleState(...basicTeams(player, opponent));
+  const outcome = simulateTurn(
+    { type: "item", itemName: "Super Potion", effect: "heal", value: 60 },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const endHp = outcome.resultingState.playerActive.currentHp;
+  const passed = endHp > startHp;
+
+  return {
+    name: "Item action healing",
+    passed,
+    output: `HP ${startHp} -> ${endHp}`,
+  };
+}
+
+function testItemActionXAttack(): TestResult {
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const player = createTestPokemon(
+    "Eevee",
+    50,
+    { hp: 55, atk: 55, def: 50, spa: 45, spd: 65, spe: 55 },
+    ["Normal"],
+    [splash],
+  );
+  const opponent = createTestPokemon(
+    "Magikarp",
+    50,
+    { hp: 20, atk: 10, def: 55, spa: 15, spd: 20, spe: 80 },
+    ["Water"],
+    [splash],
+  );
+
+  const state = createBattleState(...basicTeams(player, opponent));
+  const outcome = simulateTurn(
+    {
+      type: "item",
+      itemName: "X Attack",
+      effect: "stat-boost",
+      stat: "atk",
+      stages: 2,
+    },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const atkStage = outcome.resultingState.playerActive.statModifiers.atk;
+  const passed = atkStage === 2;
+
+  return {
+    name: "Item action X Attack",
+    passed,
+    output: `Atk stage=${atkStage}`,
+  };
+}
+
 export function runBattleMechanicsTests(): {
   totalTests: number;
   passedTests: number;
@@ -892,6 +973,8 @@ export function runBattleMechanicsTests(): {
     testLifeOrbRecoil,
     testMoldBreakerIgnoresLevitate,
     testGutsBoostedDamage,
+    testItemActionHealing,
+    testItemActionXAttack,
   ];
 
   const results = tests.map((fn) => {
