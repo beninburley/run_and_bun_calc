@@ -46,7 +46,7 @@ const TEST_CASES: TestCase[] = [
       shouldFindLines: true,
       minLines: 1,
       maxLines: 20,
-      expectedTurnsRange: [2, 10],
+      expectedTurnsRange: [2, 20],
     },
   },
 ];

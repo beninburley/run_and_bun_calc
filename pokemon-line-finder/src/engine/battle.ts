@@ -14,6 +14,7 @@ import {
 } from "../types";
 
 import {
+  calculateDamage,
   calculateFullDamage,
   determineFirstMover,
   getEffectiveStat,
@@ -39,6 +40,8 @@ import {
   HAZARD_SETTING_MOVES,
   HAZARD_REMOVAL_MOVES,
 } from "../data/hazards";
+
+import { DAMAGE_RANDOM_MAX, DAMAGE_RANDOM_MIN } from "../data/constants";
 
 /**
  * Create initial stat modifiers (all at 0)
@@ -180,10 +183,10 @@ function inferHazardEffect(move: Move): Move["hazardEffect"] | undefined {
     }
   }
 
-  if (HAZARD_REMOVAL_MOVES[move.name]) {
-    return HAZARD_REMOVAL_MOVES[move.name].removesOpponent
-      ? "defog"
-      : "rapid-spin";
+  const hazardRemoval =
+    HAZARD_REMOVAL_MOVES[move.name as keyof typeof HAZARD_REMOVAL_MOVES];
+  if (hazardRemoval) {
+    return hazardRemoval.removesOpponent ? "defog" : "rapid-spin";
   }
 
   return undefined;
@@ -328,12 +331,16 @@ function processMove(
     !damageCalc.damageRange.guaranteedKO &&
     damageCalc.damageRange.possibleKO
   ) {
-    risks.push({
-      type: "damage-roll",
-      description: `${move.name} needs high roll to KO (${damageCalc.damageRange.koChance?.toFixed(1)}% chance)`,
-      probability: 100 - (damageCalc.damageRange.koChance || 0),
-      impact: "severe",
-    });
+    const guaranteed2HKO = damageCalc.damageRange.min * 2 >= defender.currentHp;
+
+    if (!guaranteed2HKO) {
+      risks.push({
+        type: "damage-roll",
+        description: `${move.name} needs high roll to KO (${damageCalc.damageRange.koChance?.toFixed(1)}% chance)`,
+        probability: 100 - (damageCalc.damageRange.koChance || 0),
+        impact: "severe",
+      });
+    }
   }
 
   // Note: We don't track crits as a risk for PLAYER moves because crits are BENEFICIAL
@@ -357,25 +364,216 @@ function processMove(
   };
 }
 
+function clampStatStage(value: number): number {
+  return Math.max(-6, Math.min(6, value));
+}
+
+function applyStatChanges(
+  target: PokemonInstance,
+  changes: Partial<Record<keyof StatModifiers, number>>,
+): void {
+  Object.entries(changes).forEach(([stat, amount]) => {
+    if (amount === undefined) {
+      return;
+    }
+
+    const key = stat as keyof StatModifiers;
+    target.statModifiers[key] = clampStatStage(
+      target.statModifiers[key] + amount,
+    );
+  });
+}
+
+function applyStatus(
+  target: PokemonInstance,
+  status: PokemonInstance["status"],
+): void {
+  if (target.status !== "healthy") {
+    return;
+  }
+
+  target.status = status;
+}
+
+function shouldApplySecondary(
+  chance: number,
+  rngMode: "random" | "worst-case",
+  isPlayer: boolean,
+): boolean {
+  if (chance <= 0) {
+    return false;
+  }
+
+  if (rngMode === "random") {
+    return Math.random() * 100 < chance;
+  }
+
+  if (isPlayer) {
+    return chance >= 100;
+  }
+
+  return true;
+}
+
+function applySecondaryEffects(
+  move: Move,
+  attacker: PokemonInstance,
+  defender: PokemonInstance,
+  rngMode: "random" | "worst-case",
+  isPlayer: boolean,
+  canFlinch: boolean,
+): { flinched: boolean } {
+  if (rngMode === "random") {
+    return { flinched: false };
+  }
+
+  let flinched = false;
+
+  if (move.statChanges && move.statChanges.length > 0) {
+    move.statChanges.forEach((change) => {
+      if (!shouldApplySecondary(change.chance, rngMode, isPlayer)) {
+        return;
+      }
+
+      const target = change.target === "user" ? attacker : defender;
+      applyStatChanges(target, change.stats);
+    });
+  }
+
+  if (move.statusChance) {
+    if (shouldApplySecondary(move.statusChance.chance, rngMode, isPlayer)) {
+      applyStatus(defender, move.statusChance.status);
+    }
+  }
+
+  if (move.flinchChance && canFlinch) {
+    if (shouldApplySecondary(move.flinchChance, rngMode, isPlayer)) {
+      flinched = true;
+    }
+  }
+
+  return { flinched };
+}
+
+function canActFromStatus(
+  pokemon: PokemonInstance,
+  rngMode: "random" | "worst-case",
+  isPlayer: boolean,
+): boolean {
+  if (rngMode === "random") {
+    return true;
+  }
+
+  if (pokemon.status === "paralysis") {
+    return isPlayer ? false : true;
+  }
+
+  if (pokemon.status === "sleep" || pokemon.status === "freeze") {
+    return isPlayer ? false : true;
+  }
+
+  return true;
+}
+
+function applyEndOfTurnStatusDamage(
+  pokemon: PokemonInstance,
+  rngMode: "random" | "worst-case",
+): number {
+  if (rngMode !== "worst-case") {
+    return 0;
+  }
+
+  if (pokemon.currentHp <= 0) {
+    return 0;
+  }
+
+  let fraction = 0;
+  if (pokemon.status === "burn") {
+    fraction = 16;
+  } else if (pokemon.status === "poison" || pokemon.status === "badly-poison") {
+    fraction = 8;
+  }
+
+  if (fraction === 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.floor(pokemon.stats.hp / fraction));
+}
+
+function resolveMoveWorstCase(
+  move: Move,
+  attacker: PokemonInstance,
+  defender: PokemonInstance,
+  battleState: BattleState,
+  isPlayer: boolean,
+): {
+  damage: number;
+  defenderFainted: boolean;
+  attackerRecoil: number;
+  risks: Risk[];
+  moveHit: boolean;
+} {
+  const damageCalc = calculateFullDamage(move, attacker, defender, battleState);
+
+  const moveHits = isPlayer ? damageCalc.accuracy >= 100 : true;
+
+  if (!moveHits) {
+    return {
+      damage: 0,
+      defenderFainted: false,
+      attackerRecoil: 0,
+      risks: [],
+      moveHit: false,
+    };
+  }
+
+  const isCrit = isPlayer ? false : damageCalc.critChance > 0;
+  const randomRoll = isPlayer ? DAMAGE_RANDOM_MIN : DAMAGE_RANDOM_MAX;
+
+  const actualDamage = calculateDamage(move, attacker, defender, battleState, {
+    isCrit,
+    randomRoll,
+  });
+
+  const defenderFainted = actualDamage >= defender.currentHp;
+
+  let attackerRecoil = 0;
+  if (damageCalc.recoilDamage) {
+    attackerRecoil = Math.floor(actualDamage * ((move.recoil || 0) / 100));
+  }
+
+  return {
+    damage: actualDamage,
+    defenderFainted,
+    attackerRecoil,
+    risks: [],
+    moveHit: true,
+  };
+}
+
 /**
  * Simulate a complete turn of battle
  */
 export function simulateTurn(
   playerAction: BattleAction,
   state: BattleState,
+  rngMode: "random" | "worst-case" = "random",
+  forcedOpponentAction?: BattleAction,
 ): TurnOutcome {
   // Clone state to avoid mutations
   const newState = cloneBattleState(state);
   const risks: Risk[] = [];
 
-  // Determine opponent action using AI
-  const aiDecision = calculateAIDecision(
-    newState.opponentActive,
-    newState.playerActive,
-    newState.opponentTeam,
-    newState,
-  );
-  const opponentAction = aiDecision.action;
+  // Determine opponent action using AI unless forced
+  const opponentAction = forcedOpponentAction
+    ? forcedOpponentAction
+    : calculateAIDecision(
+        newState.opponentActive,
+        newState.playerActive,
+        newState.opponentTeam,
+        newState,
+      ).action;
 
   // Determine move order
   let playerMove: Move | "switch" = "switch";
@@ -422,12 +620,30 @@ export function simulateTurn(
   let opponentDamageDealt;
 
   // Execute moves in order
+  let playerFlinched = false;
+  let opponentFlinched = false;
+  let playerHasMoved = false;
+  let opponentHasMoved = false;
+
   const executeAction = (
     action: BattleAction,
     attacker: PokemonInstance,
     defender: PokemonInstance,
     isPlayer: boolean,
   ) => {
+    const attackerFlinched = isPlayer ? playerFlinched : opponentFlinched;
+
+    if (attackerFlinched || !canActFromStatus(attacker, rngMode, isPlayer)) {
+      if (isPlayer) {
+        playerFlinched = false;
+        playerHasMoved = true;
+      } else {
+        opponentFlinched = false;
+        opponentHasMoved = true;
+      }
+      return;
+    }
+
     if (action.type === "switch") {
       const hazards = isPlayer
         ? newState.playerHazards
@@ -437,12 +653,17 @@ export function simulateTurn(
 
       if (isPlayer) {
         newState.playerActive = switchResult.newActive;
+        playerHasMoved = true;
       } else {
         newState.opponentActive = switchResult.newActive;
+        opponentHasMoved = true;
       }
     } else if (action.type === "move") {
       const move = attacker.moves[action.moveIndex];
-      const moveResult = processMove(move, attacker, defender, newState);
+      const moveResult =
+        rngMode === "worst-case"
+          ? resolveMoveWorstCase(move, attacker, defender, newState, isPlayer)
+          : processMove(move, attacker, defender, newState);
 
       defender.currentHp = Math.max(0, defender.currentHp - moveResult.damage);
       attacker.currentHp = Math.max(
@@ -452,7 +673,7 @@ export function simulateTurn(
 
       // Only track risks for PLAYER actions, not opponent actions
       // (opponent missing is good for us, not a risk!)
-      if (isPlayer) {
+      if (isPlayer && rngMode === "random") {
         risks.push(...moveResult.risks);
       }
 
@@ -499,6 +720,30 @@ export function simulateTurn(
 
       if (moveResult.moveHit) {
         applyHazardMoveEffects(move, newState, isPlayer);
+
+        const canFlinch = isPlayer ? !opponentHasMoved : !playerHasMoved;
+        const secondaryResult = applySecondaryEffects(
+          move,
+          attacker,
+          defender,
+          rngMode,
+          isPlayer,
+          canFlinch,
+        );
+
+        if (secondaryResult.flinched) {
+          if (isPlayer) {
+            opponentFlinched = true;
+          } else {
+            playerFlinched = true;
+          }
+        }
+      }
+
+      if (isPlayer) {
+        playerHasMoved = true;
+      } else {
+        opponentHasMoved = true;
       }
     }
   };
@@ -634,6 +879,36 @@ export function simulateTurn(
       );
       if (opponentActiveIndex !== -1) {
         newState.opponentTeam[opponentActiveIndex] = newState.opponentActive;
+      }
+    }
+  }
+
+  if (rngMode === "worst-case") {
+    const playerStatusDamage = applyEndOfTurnStatusDamage(
+      newState.playerActive,
+      rngMode,
+    );
+    if (playerStatusDamage > 0) {
+      newState.playerActive.currentHp = Math.max(
+        0,
+        newState.playerActive.currentHp - playerStatusDamage,
+      );
+      if (newState.playerActive.currentHp === 0) {
+        playerFainted = true;
+      }
+    }
+
+    const opponentStatusDamage = applyEndOfTurnStatusDamage(
+      newState.opponentActive,
+      rngMode,
+    );
+    if (opponentStatusDamage > 0) {
+      newState.opponentActive.currentHp = Math.max(
+        0,
+        newState.opponentActive.currentHp - opponentStatusDamage,
+      );
+      if (newState.opponentActive.currentHp === 0) {
+        opponentFainted = true;
       }
     }
   }

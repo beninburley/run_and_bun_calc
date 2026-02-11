@@ -108,6 +108,7 @@ function generatePlayerActions(
 function evaluateLineRisk(
   turns: TurnOutcome[],
   _options: SearchOptions,
+  initialState: BattleState,
 ): {
   overallRisk: LineOfPlay["overallRisk"];
   guaranteedSuccess: boolean;
@@ -116,6 +117,7 @@ function evaluateLineRisk(
   requiresHits: boolean;
   requiresSecondaryEffects: boolean;
 } {
+  const worstCaseVictory = checkWorstCaseVictory(initialState, turns);
   const allRisks = turns.flatMap((t) => t.risksInvolved);
 
   // Check for specific dependencies
@@ -140,8 +142,7 @@ function evaluateLineRisk(
     }
   }
 
-  const guaranteedSuccess =
-    allRisks.length === 0 || allRisks.every((r) => r.impact === "minor");
+  const guaranteedSuccess = worstCaseVictory;
 
   // Determine overall risk level
   let overallRisk: LineOfPlay["overallRisk"] = "none";
@@ -171,11 +172,36 @@ function evaluateLineRisk(
   return {
     overallRisk,
     guaranteedSuccess,
-    successProbability,
+    successProbability: guaranteedSuccess ? 100 : successProbability,
     requiresCrits,
     requiresHits,
     requiresSecondaryEffects,
   };
+}
+
+function checkWorstCaseVictory(
+  initialState: BattleState,
+  turns: TurnOutcome[],
+): boolean {
+  let state = cloneBattleState(initialState);
+
+  for (const turn of turns) {
+    const outcome = simulateTurn(
+      turn.playerAction,
+      state,
+      "worst-case",
+      turn.opponentAction,
+    );
+    state = outcome.resultingState;
+
+    const battleStatus = isBattleOver(state);
+    if (battleStatus.isOver) {
+      return battleStatus.winner === "player";
+    }
+  }
+
+  const battleStatus = isBattleOver(state);
+  return battleStatus.isOver && battleStatus.winner === "player";
 }
 
 /**
@@ -266,6 +292,7 @@ function searchLines(
   foundLines: LineOfPlay[],
   visitedStates: Set<string>,
   debugMode: boolean = false,
+  initialState: BattleState,
 ): void {
   // Debug logging
   if (debugMode) {
@@ -304,7 +331,11 @@ function searchLines(
         );
       }
       // Found a winning line!
-      const lineRisk = evaluateLineRisk(searchState.actionsThisLine, options);
+      const lineRisk = evaluateLineRisk(
+        searchState.actionsThisLine,
+        options,
+        initialState,
+      );
 
       // Filter based on risk preferences
       if (!options.allowCritDependence && lineRisk.requiresCrits) {
@@ -481,7 +512,14 @@ function searchLines(
       playerCasualties: newCasualties,
     };
 
-    searchLines(newSearchState, options, foundLines, visitedStates, debugMode);
+    searchLines(
+      newSearchState,
+      options,
+      foundLines,
+      visitedStates,
+      debugMode,
+      initialState,
+    );
   }
 }
 
@@ -516,7 +554,14 @@ export function findLines(
     console.log("Search options:", options);
   }
 
-  searchLines(searchState, options, foundLines, visitedStates, debugMode);
+  searchLines(
+    searchState,
+    options,
+    foundLines,
+    visitedStates,
+    debugMode,
+    initialState,
+  );
 
   console.log(`Found ${foundLines.length} viable lines`);
 
