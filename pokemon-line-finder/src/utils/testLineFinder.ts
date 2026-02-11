@@ -11,8 +11,13 @@ declare const process: {
 };
 
 import { findLines, DEFAULT_SEARCH_OPTIONS } from "../engine/lineFinder";
-import { getMockBattle1, getMockBattle2 } from "./testData";
-import { LineOfPlay, PokemonInstance } from "../types";
+import {
+  createMove,
+  createTestPokemon,
+  getMockBattle1,
+  getMockBattle2,
+} from "./testData";
+import { LineOfPlay, PokemonInstance, SearchOptions } from "../types";
 import { calculateDamageRange } from "../engine/damage";
 import { calculateAIDecision } from "../engine/ai";
 import { createBattleState } from "../engine/battle";
@@ -22,6 +27,7 @@ import { runBattleMechanicsTests } from "./testBattleMechanics";
 interface TestCase {
   name: string;
   setup: () => { playerTeam: any[]; opponentTeam: any[] };
+  options?: Partial<SearchOptions>;
   expectedBehavior: {
     shouldFindLines: boolean;
     minLines?: number;
@@ -29,6 +35,8 @@ interface TestCase {
     shouldContainGuaranteedWin?: boolean;
     expectedFirstMove?: string;
     expectedTurnsRange?: [number, number]; // [min, max]
+    expectedRngAssessment?: LineOfPlay["rngAssessment"];
+    maxSuccessProbability?: number;
   };
 }
 
@@ -49,6 +57,47 @@ const TEST_CASES: TestCase[] = [
     setup: getMockBattle2,
     expectedBehavior: {
       shouldFindLines: false,
+    },
+  },
+  {
+    name: "Probabilistic mode - RNG required",
+    setup: () => {
+      const shakyStrike = createMove(
+        "Shaky Strike",
+        "Normal",
+        "physical",
+        80,
+        80,
+      );
+      const splash = createMove("Splash", "Normal", "status", 0);
+
+      const player = createTestPokemon(
+        "Eevee",
+        50,
+        { hp: 55, atk: 55, def: 50, spa: 45, spd: 65, spe: 55 },
+        ["Normal"],
+        [shakyStrike],
+      );
+      const opponent = createTestPokemon(
+        "Magikarp",
+        50,
+        { hp: 20, atk: 10, def: 55, spa: 15, spd: 20, spe: 80 },
+        ["Water"],
+        [splash],
+      );
+
+      return { playerTeam: [player], opponentTeam: [opponent] };
+    },
+    options: {
+      searchMode: "probabilistic",
+      minSuccessProbability: 0,
+      allowAccuracyDependence: true,
+    },
+    expectedBehavior: {
+      shouldFindLines: true,
+      minLines: 1,
+      expectedRngAssessment: "fails-worst-case",
+      maxSuccessProbability: 99.9,
     },
   },
 ];
@@ -149,12 +198,11 @@ function runSingleTest(testCase: TestCase): TestResult {
   // Execute - Enable debug mode for detailed output
   let lines: LineOfPlay[] = [];
   try {
-    lines = findLines(
-      playerTeam,
-      opponentTeam,
-      DEFAULT_SEARCH_OPTIONS,
-      verbose,
-    );
+    const mergedOptions: SearchOptions = {
+      ...DEFAULT_SEARCH_OPTIONS,
+      ...(testCase.options ?? {}),
+    };
+    lines = findLines(playerTeam, opponentTeam, mergedOptions, verbose);
   } catch (error) {
     failures.push(`Exception thrown: ${error}`);
     return {
@@ -241,6 +289,22 @@ function runSingleTest(testCase: TestCase): TestResult {
       } else if (verbose) {
         console.log(
           `   ✓ Turn count ${turns} is within expected range [${min}, ${max}]`,
+        );
+      }
+    }
+
+    if (exp.expectedRngAssessment) {
+      if (bestLine.rngAssessment !== exp.expectedRngAssessment) {
+        failures.push(
+          `Expected rngAssessment ${exp.expectedRngAssessment} but got ${bestLine.rngAssessment}`,
+        );
+      }
+    }
+
+    if (exp.maxSuccessProbability !== undefined) {
+      if (bestLine.successProbability > exp.maxSuccessProbability) {
+        failures.push(
+          `Expected successProbability <= ${exp.maxSuccessProbability} but got ${bestLine.successProbability}`,
         );
       }
     }
