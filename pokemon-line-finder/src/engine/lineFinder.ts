@@ -12,6 +12,7 @@ import {
   TurnOutcome,
   BattleAction,
   Risk,
+  Move,
 } from "../types";
 
 import {
@@ -21,12 +22,26 @@ import {
   createBattleState,
 } from "./battle";
 
+import { calculateAIDecision } from "./ai";
+
+import {
+  calculateFullDamage,
+  getEffectiveStat,
+} from "./damage";
+
+import { getItem, getItemStatMultiplier } from "../data/items";
+import { getWeatherSpeedMultiplier } from "../data/weather";
+import { getTerrainSpeedMultiplier } from "../data/terrain";
+
 /**
  * Default search options for MVP
  */
 export const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
   maxDepth: 20, // Maximum 20 turns
   maxLines: 10, // Return top 10 lines
+
+  // RNG mode
+  searchMode: "worst-case",
 
   // Risk tolerance (Nuzlocke-safe by default)
   allowDeaths: false,
@@ -43,6 +58,213 @@ export const DEFAULT_SEARCH_OPTIONS: SearchOptions = {
   allowPreDamage: false,
   allowPPStall: false,
 };
+
+interface MoveBranchOverride {
+  hit?: boolean;
+  crit?: boolean;
+  damageRoll?: number;
+  secondaryApplies?: boolean;
+}
+
+interface BranchOutcome {
+  outcome: TurnOutcome;
+  probability: number;
+}
+
+const MAX_PROBABILISTIC_BRANCHES = 24;
+
+function getStatusSpeedMultiplier(status: PokemonInstance["status"]): number {
+  if (status === "paralysis") {
+    return 0.5;
+  }
+  return 1;
+}
+
+function getSpeedValue(
+  pokemon: PokemonInstance,
+  battleState: BattleState,
+): number {
+  return Math.floor(
+    getEffectiveStat(pokemon.stats.spe, pokemon.statModifiers.spe) *
+      getItemStatMultiplier(getItem(pokemon.item), "spe") *
+      getWeatherSpeedMultiplier(pokemon, battleState.weather) *
+      getTerrainSpeedMultiplier(pokemon, battleState.terrain) *
+      getStatusSpeedMultiplier(pokemon.status),
+  );
+}
+
+function createMoveBranches(
+  move: Move,
+  attacker: PokemonInstance,
+  defender: PokemonInstance,
+  battleState: BattleState,
+): Array<{ override: MoveBranchOverride; probability: number }> {
+  const damageCalc = calculateFullDamage(move, attacker, defender, battleState);
+  const accuracy = Math.max(0, Math.min(100, damageCalc.accuracy)) / 100;
+  const critChance = Math.max(0, Math.min(100, damageCalc.critChance)) / 100;
+  const secondaryChance =
+    damageCalc.secondaryEffectChance !== undefined
+      ? Math.max(0, Math.min(100, damageCalc.secondaryEffectChance)) / 100
+      : 0;
+  const koChance =
+    damageCalc.damageRange.koChance !== undefined
+      ? Math.max(0, Math.min(100, damageCalc.damageRange.koChance)) / 100
+      : damageCalc.damageRange.guaranteedKO
+        ? 1
+        : 0;
+
+  let branches: Array<{ override: MoveBranchOverride; probability: number }> = [
+    { override: {}, probability: 1 },
+  ];
+
+  if (accuracy < 1) {
+    const hitBranch = branches.map((b) => ({
+      override: { ...b.override, hit: true },
+      probability: b.probability * accuracy,
+    }));
+    const missBranch = branches.map((b) => ({
+      override: { ...b.override, hit: false },
+      probability: b.probability * (1 - accuracy),
+    }));
+    branches = [...hitBranch, ...missBranch];
+  }
+
+  if (critChance > 0 && critChance < 1) {
+    branches = branches.flatMap((b) => {
+      if (b.override.hit === false) {
+        return [b];
+      }
+      return [
+        {
+          override: { ...b.override, crit: true },
+          probability: b.probability * critChance,
+        },
+        {
+          override: { ...b.override, crit: false },
+          probability: b.probability * (1 - critChance),
+        },
+      ];
+    });
+  }
+
+  if (secondaryChance > 0 && secondaryChance < 1) {
+    branches = branches.flatMap((b) => {
+      if (b.override.hit === false) {
+        return [b];
+      }
+      return [
+        {
+          override: { ...b.override, secondaryApplies: true },
+          probability: b.probability * secondaryChance,
+        },
+        {
+          override: { ...b.override, secondaryApplies: false },
+          probability: b.probability * (1 - secondaryChance),
+        },
+      ];
+    });
+  }
+
+  if (koChance > 0 && koChance < 1) {
+    branches = branches.flatMap((b) => {
+      if (b.override.hit === false) {
+        return [b];
+      }
+      return [
+        {
+          override: { ...b.override, damageRoll: 100 },
+          probability: b.probability * koChance,
+        },
+        {
+          override: { ...b.override, damageRoll: 85 },
+          probability: b.probability * (1 - koChance),
+        },
+      ];
+    });
+  }
+
+  return branches.filter((b) => b.probability > 0);
+}
+
+function createProbabilisticOutcomes(
+  action: BattleAction,
+  state: BattleState,
+): BranchOutcome[] {
+  const opponentAction = calculateAIDecision(
+    state.opponentActive,
+    state.playerActive,
+    state.opponentTeam,
+    state,
+    "random",
+  ).action;
+
+  const playerMoveBranches =
+    action.type === "move"
+      ? createMoveBranches(
+          state.playerActive.moves[action.moveIndex],
+          state.playerActive,
+          state.opponentActive,
+          state,
+        )
+      : [{ override: {}, probability: 1 }];
+
+  const opponentMoveBranches =
+    opponentAction.type === "move"
+      ? createMoveBranches(
+          state.opponentActive.moves[opponentAction.moveIndex],
+          state.opponentActive,
+          state.playerActive,
+          state,
+        )
+      : [{ override: {}, probability: 1 }];
+
+  const playerSpeed = getSpeedValue(state.playerActive, state);
+  const opponentSpeed = getSpeedValue(state.opponentActive, state);
+  const speedTieBranches: Array<{ winner?: "player" | "opponent"; prob: number }> =
+    action.type === "move" &&
+    opponentAction.type === "move" &&
+    state.playerActive.moves[action.moveIndex].priority ===
+      state.opponentActive.moves[opponentAction.moveIndex].priority &&
+    playerSpeed === opponentSpeed
+      ? [
+          { winner: "player", prob: 0.5 },
+          { winner: "opponent", prob: 0.5 },
+        ]
+      : [{ winner: undefined, prob: 1 }];
+
+  const outcomes: BranchOutcome[] = [];
+
+  playerMoveBranches.forEach((playerBranch) => {
+    opponentMoveBranches.forEach((opponentBranch) => {
+      speedTieBranches.forEach((speedBranch) => {
+        const probability =
+          playerBranch.probability *
+          opponentBranch.probability *
+          speedBranch.prob;
+        if (probability <= 0) {
+          return;
+        }
+
+        const outcome = simulateTurn(
+          action,
+          cloneBattleState(state),
+          "random",
+          opponentAction,
+          {
+            speedTieWinner: speedBranch.winner,
+            playerMove: playerBranch.override,
+            opponentMove: opponentBranch.override,
+          },
+        );
+
+        outcomes.push({ outcome, probability });
+      });
+    });
+  });
+
+  outcomes.sort((a, b) => b.probability - a.probability);
+  return outcomes.slice(0, MAX_PROBABILISTIC_BRANCHES);
+}
 
 /**
  * Generate possible player actions for current state
@@ -121,8 +343,9 @@ function generatePlayerActions(
  */
 function evaluateLineRisk(
   turns: TurnOutcome[],
-  _options: SearchOptions,
+  options: SearchOptions,
   initialState: BattleState,
+  lineProbability: number,
 ): {
   overallRisk: LineOfPlay["overallRisk"];
   guaranteedSuccess: boolean;
@@ -130,6 +353,9 @@ function evaluateLineRisk(
   requiresCrits: boolean;
   requiresHits: boolean;
   requiresSecondaryEffects: boolean;
+  rngAssessment: LineOfPlay["rngAssessment"];
+  rngAssessmentLabel: string;
+  rngAssessmentNotes: string[];
 } {
   const worstCaseVictory = checkWorstCaseVictory(initialState, turns);
   const allRisks = turns.flatMap((t) => t.risksInvolved);
@@ -157,6 +383,18 @@ function evaluateLineRisk(
   }
 
   const guaranteedSuccess = worstCaseVictory;
+  if (options.searchMode === "probabilistic") {
+    successProbability = Math.max(0, Math.min(100, lineProbability * 100));
+  }
+  const rngAssessment: LineOfPlay["rngAssessment"] = guaranteedSuccess
+    ? "guaranteed"
+    : "fails-worst-case";
+  const rngAssessmentLabel = guaranteedSuccess
+    ? "Guaranteed under worst-case RNG"
+    : "Requires favorable rolls";
+  const rngAssessmentNotes: string[] = guaranteedSuccess
+    ? []
+    : ["Fails under worst-case RNG"];
 
   // Determine overall risk level
   let overallRisk: LineOfPlay["overallRisk"] = "none";
@@ -190,6 +428,9 @@ function evaluateLineRisk(
     requiresCrits,
     requiresHits,
     requiresSecondaryEffects,
+    rngAssessment,
+    rngAssessmentLabel,
+    rngAssessmentNotes,
   };
 }
 
@@ -349,6 +590,7 @@ function searchLines(
         searchState.actionsThisLine,
         options,
         initialState,
+        searchState.probability,
       );
 
       // Filter based on risk preferences
@@ -483,9 +725,11 @@ function searchLines(
   visitedStates.add(stateSignature);
 
   // Score and sort actions by heuristic
+  const rngMode = options.searchMode === "worst-case" ? "worst-case" : "random";
+
   const scoredActions = possibleActions.map((action) => {
     const simState = cloneBattleState(searchState.battleState);
-    const outcome = simulateTurn(action, simState, "worst-case");
+    const outcome = simulateTurn(action, simState, rngMode);
     const score = calculateHeuristicScore(
       outcome.resultingState,
       searchState.playerCasualties + (outcome.playerFainted ? 1 : 0),
@@ -515,31 +759,65 @@ function searchLines(
     });
   }
 
-  for (const { outcome } of topActions) {
+  for (const { outcome, action } of topActions) {
     // Stop if we've found enough lines
     if (foundLines.length >= options.maxLines) {
       return;
     }
 
-    const newCasualties =
-      searchState.playerCasualties + (outcome.playerFainted ? 1 : 0);
+    if (options.searchMode === "probabilistic") {
+      const probabilisticOutcomes = createProbabilisticOutcomes(
+        action,
+        searchState.battleState,
+      );
 
-    const newSearchState: SearchState = {
-      battleState: outcome.resultingState,
-      depth: searchState.depth + 1,
-      actionsThisLine: [...searchState.actionsThisLine, outcome],
-      totalRisk: searchState.totalRisk, // TODO: Accumulate risk properly
-      playerCasualties: newCasualties,
-    };
+      for (const branch of probabilisticOutcomes) {
+        if (foundLines.length >= options.maxLines) {
+          return;
+        }
 
-    searchLines(
-      newSearchState,
-      options,
-      foundLines,
-      visitedStates,
-      debugMode,
-      initialState,
-    );
+        const newCasualties =
+          searchState.playerCasualties + (branch.outcome.playerFainted ? 1 : 0);
+        const newSearchState: SearchState = {
+          battleState: branch.outcome.resultingState,
+          depth: searchState.depth + 1,
+          actionsThisLine: [...searchState.actionsThisLine, branch.outcome],
+          totalRisk: searchState.totalRisk,
+          playerCasualties: newCasualties,
+          probability: searchState.probability * branch.probability,
+        };
+
+        searchLines(
+          newSearchState,
+          options,
+          foundLines,
+          visitedStates,
+          debugMode,
+          initialState,
+        );
+      }
+    } else {
+      const newCasualties =
+        searchState.playerCasualties + (outcome.playerFainted ? 1 : 0);
+
+      const newSearchState: SearchState = {
+        battleState: outcome.resultingState,
+        depth: searchState.depth + 1,
+        actionsThisLine: [...searchState.actionsThisLine, outcome],
+        totalRisk: searchState.totalRisk, // TODO: Accumulate risk properly
+        playerCasualties: newCasualties,
+        probability: searchState.probability,
+      };
+
+      searchLines(
+        newSearchState,
+        options,
+        foundLines,
+        visitedStates,
+        debugMode,
+        initialState,
+      );
+    }
   }
 }
 
@@ -560,6 +838,7 @@ export function findLines(
     actionsThisLine: [],
     totalRisk: 0,
     playerCasualties: 0,
+    probability: 1,
   };
 
   const foundLines: LineOfPlay[] = [];

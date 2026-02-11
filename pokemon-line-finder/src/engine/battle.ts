@@ -44,6 +44,20 @@ import {
 
 import { DAMAGE_RANDOM_MAX, DAMAGE_RANDOM_MIN } from "../data/constants";
 
+interface MoveOverride {
+  hit?: boolean;
+  crit?: boolean;
+  damageRoll?: number; // 85-100
+  secondaryApplies?: boolean;
+  hits?: number;
+}
+
+interface TurnOverrides {
+  speedTieWinner?: "player" | "opponent";
+  playerMove?: MoveOverride;
+  opponentMove?: MoveOverride;
+}
+
 /**
  * Create initial stat modifiers (all at 0)
  */
@@ -269,6 +283,7 @@ function processMove(
   attacker: PokemonInstance,
   defender: PokemonInstance,
   battleState: BattleState,
+  override?: MoveOverride,
 ): {
   damage: number;
   defenderFainted: boolean;
@@ -291,7 +306,10 @@ function processMove(
 
   // Roll for accuracy
   const accuracyRoll = Math.random() * 100;
-  const moveHits = accuracyRoll < damageCalc.accuracy;
+  const moveHits =
+    override?.hit !== undefined
+      ? override.hit
+      : accuracyRoll < damageCalc.accuracy;
 
   if (!moveHits) {
     return {
@@ -320,15 +338,25 @@ function processMove(
     });
   }
 
-  const hits = getHitCount(move, "random", true);
+  const hits =
+    override?.hits !== undefined
+      ? override.hits
+      : getHitCount(move, "random", true);
   let totalDamage = 0;
 
   for (let hit = 0; hit < hits; hit++) {
     const randomRoll =
-      DAMAGE_RANDOM_MIN +
-      Math.floor(Math.random() * (DAMAGE_RANDOM_MAX - DAMAGE_RANDOM_MIN + 1));
+      override?.damageRoll !== undefined
+        ? override.damageRoll
+        : DAMAGE_RANDOM_MIN +
+          Math.floor(
+            Math.random() * (DAMAGE_RANDOM_MAX - DAMAGE_RANDOM_MIN + 1),
+          );
     const critRoll = Math.random() * 100;
-    const isCrit = critRoll < damageCalc.critChance;
+    const isCrit =
+      override?.crit !== undefined
+        ? override.crit
+        : critRoll < damageCalc.critChance;
 
     const hitDamage = calculateDamage(move, attacker, defender, battleState, {
       isCrit,
@@ -463,6 +491,7 @@ function applySecondaryEffects(
   rngMode: "random" | "worst-case",
   isPlayer: boolean,
   canFlinch: boolean,
+  forcedApply?: boolean,
 ): { flinched: boolean } {
   let flinched = false;
 
@@ -506,7 +535,11 @@ function applySecondaryEffects(
   }
 
   effects.forEach((effect) => {
-    if (!shouldApplySecondary(effect.chance, rngMode, isPlayer)) {
+    if (forcedApply !== undefined) {
+      if (!forcedApply) {
+        return;
+      }
+    } else if (!shouldApplySecondary(effect.chance, rngMode, isPlayer)) {
       return;
     }
 
@@ -819,6 +852,7 @@ export function simulateTurn(
   state: BattleState,
   rngMode: "random" | "worst-case" = "random",
   forcedOpponentAction?: BattleAction,
+  overrides?: TurnOverrides,
 ): TurnOutcome {
   // Clone state to avoid mutations
   const newState = cloneBattleState(state);
@@ -899,6 +933,7 @@ export function simulateTurn(
     opponentSpeed,
     newState,
     rngMode,
+    overrides?.speedTieWinner,
   );
 
   if (
@@ -933,6 +968,9 @@ export function simulateTurn(
     defender: PokemonInstance,
     isPlayer: boolean,
   ) => {
+    const moveOverride = isPlayer
+      ? overrides?.playerMove
+      : overrides?.opponentMove;
     const attackerFlinched = isPlayer ? playerFlinched : opponentFlinched;
 
     if (action.type === "recharge") {
@@ -1025,7 +1063,7 @@ export function simulateTurn(
       const moveResult =
         rngMode === "worst-case"
           ? resolveMoveWorstCase(move, attacker, defender, newState, isPlayer)
-          : processMove(move, attacker, defender, newState);
+          : processMove(move, attacker, defender, newState, moveOverride);
 
       defender.currentHp = Math.max(0, defender.currentHp - moveResult.damage);
       attacker.currentHp = Math.max(
@@ -1099,6 +1137,7 @@ export function simulateTurn(
           rngMode,
           isPlayer,
           canFlinch,
+          moveOverride?.secondaryApplies,
         );
 
         if (secondaryResult.flinched) {

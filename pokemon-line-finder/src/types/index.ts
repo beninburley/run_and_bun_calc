@@ -414,6 +414,11 @@ export interface LineOfPlay {
   guaranteedSuccess: boolean; // True if no RNG can cause failure
   successProbability: number; // 0-100
 
+  // RNG assessment
+  rngAssessment: "guaranteed" | "requires-rolls" | "fails-worst-case";
+  rngAssessmentLabel: string;
+  rngAssessmentNotes: string[];
+
   // Categorization
   requiresCrits: boolean;
   requiresHits: boolean; // Accuracy-dependent
@@ -431,6 +436,9 @@ export interface LineOfPlay {
 export interface SearchOptions {
   maxDepth: number; // Maximum turns to search
   maxLines: number; // Maximum number of lines to return
+
+  // RNG mode
+  searchMode: "worst-case" | "probabilistic";
 
   // Risk tolerance
   allowDeaths: boolean;
@@ -454,6 +462,7 @@ export interface SearchState {
   actionsThisLine: TurnOutcome[];
   totalRisk: number;
   playerCasualties: number;
+  probability: number; // 0-1 cumulative probability in probabilistic mode
 }
 
 // ============================================================================

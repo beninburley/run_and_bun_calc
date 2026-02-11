@@ -4,12 +4,12 @@ This document tracks remaining work after Phase 1 mechanics.
 
 ## Phase 2 - Line Finder and Risk Model
 
-- Add search mode toggle: worst-case vs probabilistic.
-- Keep worst-case path single-branch and deterministic.
-- Add probabilistic branching and expected win probability aggregation.
-- Add line metadata labels: guaranteed, requires favorable rolls, fails worst-case.
-- Add explanation metadata per line for risk reasoning.
-- If performance degrades, add:
+- [x] Add search mode toggle: worst-case vs probabilistic.
+- [x] Keep worst-case path single-branch and deterministic.
+- [x] Add probabilistic branching and expected win probability aggregation.
+- [x] Add line metadata labels: guaranteed, requires favorable rolls, fails worst-case.
+- [x] Add explanation metadata per line for risk reasoning.
+- [ ] If performance degrades, add:
   - Adaptive beam width scaling.
   - State dedup pruning upgrades.
   - Hash-based battle state caching.

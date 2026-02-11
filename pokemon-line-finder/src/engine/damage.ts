@@ -593,6 +593,7 @@ export function determineFirstMover(
   opponentSpeed: number,
   battleState: BattleState,
   rngMode: "random" | "worst-case" = "random",
+  speedTieWinner?: "player" | "opponent",
 ): "player" | "opponent" {
   // Switches always go first
   if (playerAction === "switch" && opponentAction !== "switch") {
@@ -633,6 +634,9 @@ export function determineFirstMover(
     // Speed tie - worst-case resolves against player
     if (rngMode === "worst-case") {
       return "opponent";
+    }
+    if (speedTieWinner) {
+      return speedTieWinner;
     }
     return Math.random() < 0.5 ? "player" : "opponent";
   }
