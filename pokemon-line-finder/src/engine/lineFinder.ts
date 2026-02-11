@@ -24,10 +24,7 @@ import {
 
 import { calculateAIDecision } from "./ai";
 
-import {
-  calculateFullDamage,
-  getEffectiveStat,
-} from "./damage";
+import { calculateFullDamage, getEffectiveStat } from "./damage";
 
 import { getItem, getItemStatMultiplier } from "../data/items";
 import { getWeatherSpeedMultiplier } from "../data/weather";
@@ -220,7 +217,10 @@ function createProbabilisticOutcomes(
 
   const playerSpeed = getSpeedValue(state.playerActive, state);
   const opponentSpeed = getSpeedValue(state.opponentActive, state);
-  const speedTieBranches: Array<{ winner?: "player" | "opponent"; prob: number }> =
+  const speedTieBranches: Array<{
+    winner?: "player" | "opponent";
+    prob: number;
+  }> =
     action.type === "move" &&
     opponentAction.type === "move" &&
     state.playerActive.moves[action.moveIndex].priority ===
