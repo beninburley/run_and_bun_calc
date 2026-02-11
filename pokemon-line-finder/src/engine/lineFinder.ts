@@ -465,7 +465,7 @@ function searchLines(
   // Score and sort actions by heuristic
   const scoredActions = possibleActions.map((action) => {
     const simState = cloneBattleState(searchState.battleState);
-    const outcome = simulateTurn(action, simState);
+    const outcome = simulateTurn(action, simState, "worst-case");
     const score = calculateHeuristicScore(
       outcome.resultingState,
       searchState.playerCasualties + (outcome.playerFainted ? 1 : 0),
@@ -563,7 +563,9 @@ export function findLines(
     initialState,
   );
 
-  console.log(`Found ${foundLines.length} viable lines`);
+  if (debugMode) {
+    console.log(`Found ${foundLines.length} viable lines`);
+  }
 
   // Sort lines by risk and casualties
   foundLines.sort((a, b) => {

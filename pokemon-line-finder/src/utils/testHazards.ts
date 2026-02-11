@@ -3,6 +3,12 @@
  * Validates damage calculations and effects for hazards when switching in
  */
 
+// Type declaration for Node.js process (used when running tests via tsx)
+declare const process: {
+  env?: Record<string, string | undefined>;
+  argv?: string[];
+};
+
 import { createTestPokemon } from "./testData";
 import {
   calculateHazardDamageWithItems,
@@ -10,6 +16,17 @@ import {
   appliesStickyWeb,
   Hazards,
 } from "../data/hazards";
+
+function isVerboseMode(): boolean {
+  const envFlag = process.env?.VERBOSE_TESTS;
+  if (envFlag && envFlag !== "0") {
+    return true;
+  }
+
+  return (process.argv || []).some((arg) =>
+    ["--verbose", "--debug"].includes(arg),
+  );
+}
 
 function baseHazards(): Hazards {
   return {
@@ -21,7 +38,11 @@ function baseHazards(): Hazards {
 }
 
 export function testStealthRockDamage(): { passed: boolean; output: string } {
-  console.log("=== TEST: Stealth Rock Damage ===");
+  const verbose = isVerboseMode();
+
+  if (verbose) {
+    console.log("=== TEST: Stealth Rock Damage ===");
+  }
 
   const charizard = createTestPokemon(
     "Charizard",
@@ -38,16 +59,20 @@ export function testStealthRockDamage(): { passed: boolean; output: string } {
   const result = calculateHazardDamageWithItems(charizard, hazards);
   const expected = Math.floor((charizard.stats.hp / 8) * 4); // 4× weakness
 
-  console.log("  Expected damage:", expected);
-  console.log("  Actual damage:", result.stealthRockDamage);
+  if (verbose) {
+    console.log("  Expected damage:", expected);
+    console.log("  Actual damage:", result.stealthRockDamage);
+  }
 
   const passed =
     result.stealthRockDamage === expected && result.damage === expected;
 
-  if (passed) {
-    console.log("✅ Stealth Rock dealt 4× damage to Fire/Flying target");
-  } else {
-    console.log("❌ Stealth Rock damage incorrect");
+  if (verbose) {
+    if (passed) {
+      console.log("✅ Stealth Rock dealt 4× damage to Fire/Flying target");
+    } else {
+      console.log("❌ Stealth Rock damage incorrect");
+    }
   }
 
   return {
@@ -57,7 +82,11 @@ export function testStealthRockDamage(): { passed: boolean; output: string } {
 }
 
 export function testSpikesLayers(): { passed: boolean; output: string } {
-  console.log("\n=== TEST: Spikes Layers ===");
+  const verbose = isVerboseMode();
+
+  if (verbose) {
+    console.log("\n=== TEST: Spikes Layers ===");
+  }
 
   const blastoise = createTestPokemon(
     "Blastoise",
@@ -74,15 +103,19 @@ export function testSpikesLayers(): { passed: boolean; output: string } {
   const result = calculateHazardDamageWithItems(blastoise, hazards);
   const expected = Math.floor(blastoise.stats.hp / 4); // 1/4 HP at 3 layers
 
-  console.log("  Expected damage:", expected);
-  console.log("  Actual spikes damage:", result.spikesDamage);
+  if (verbose) {
+    console.log("  Expected damage:", expected);
+    console.log("  Actual spikes damage:", result.spikesDamage);
+  }
 
   const passed = result.spikesDamage === expected && result.damage === expected;
 
-  if (passed) {
-    console.log("✅ Spikes dealt correct 1/4 HP at 3 layers");
-  } else {
-    console.log("❌ Spikes damage incorrect");
+  if (verbose) {
+    if (passed) {
+      console.log("✅ Spikes dealt correct 1/4 HP at 3 layers");
+    } else {
+      console.log("❌ Spikes damage incorrect");
+    }
   }
 
   return {
@@ -95,7 +128,11 @@ export function testToxicSpikesEffects(): {
   passed: boolean;
   output: string;
 } {
-  console.log("\n=== TEST: Toxic Spikes Effects ===");
+  const verbose = isVerboseMode();
+
+  if (verbose) {
+    console.log("\n=== TEST: Toxic Spikes Effects ===");
+  }
 
   const garchomp = createTestPokemon(
     "Garchomp",
@@ -107,7 +144,9 @@ export function testToxicSpikesEffects(): {
   );
 
   const effect = getToxicSpikesEffect(garchomp, 2);
-  console.log("  Toxic Spikes effect on Garchomp:", effect);
+  if (verbose) {
+    console.log("  Toxic Spikes effect on Garchomp:", effect);
+  }
 
   const poisonPassed = effect === "badly-poison";
 
@@ -121,16 +160,20 @@ export function testToxicSpikesEffects(): {
   );
 
   const absorbEffect = getToxicSpikesEffect(roserade, 2);
-  console.log("  Toxic Spikes effect on Roserade:", absorbEffect);
+  if (verbose) {
+    console.log("  Toxic Spikes effect on Roserade:", absorbEffect);
+  }
 
   const absorbPassed = absorbEffect === "absorb";
 
-  if (poisonPassed && absorbPassed) {
-    console.log(
-      "✅ Toxic Spikes poisoned grounded target and were absorbed by Poison-type",
-    );
-  } else {
-    console.log("❌ Toxic Spikes effect logic incorrect");
+  if (verbose) {
+    if (poisonPassed && absorbPassed) {
+      console.log(
+        "✅ Toxic Spikes poisoned grounded target and were absorbed by Poison-type",
+      );
+    } else {
+      console.log("❌ Toxic Spikes effect logic incorrect");
+    }
   }
 
   return {
@@ -140,7 +183,11 @@ export function testToxicSpikesEffects(): {
 }
 
 export function testHeavyDutyBoots(): { passed: boolean; output: string } {
-  console.log("\n=== TEST: Heavy-Duty Boots ===");
+  const verbose = isVerboseMode();
+
+  if (verbose) {
+    console.log("\n=== TEST: Heavy-Duty Boots ===");
+  }
 
   const charizard = createTestPokemon(
     "Charizard",
@@ -160,10 +207,12 @@ export function testHeavyDutyBoots(): { passed: boolean; output: string } {
 
   const result = calculateHazardDamageWithItems(charizard, hazards);
 
-  console.log("  Boots negated:", result.bootsNegated);
-  console.log("  Total damage:", result.damage);
-  console.log("  Sticky Web applies:", result.stickyWebApplies);
-  console.log("  Toxic Spikes effect:", result.toxicSpikesEffect);
+  if (verbose) {
+    console.log("  Boots negated:", result.bootsNegated);
+    console.log("  Total damage:", result.damage);
+    console.log("  Sticky Web applies:", result.stickyWebApplies);
+    console.log("  Toxic Spikes effect:", result.toxicSpikesEffect);
+  }
 
   const passed =
     result.bootsNegated &&
@@ -171,10 +220,12 @@ export function testHeavyDutyBoots(): { passed: boolean; output: string } {
     result.stickyWebApplies === false &&
     result.toxicSpikesEffect === "none";
 
-  if (passed) {
-    console.log("✅ Heavy-Duty Boots negated all hazard effects");
-  } else {
-    console.log("❌ Heavy-Duty Boots interaction incorrect");
+  if (verbose) {
+    if (passed) {
+      console.log("✅ Heavy-Duty Boots negated all hazard effects");
+    } else {
+      console.log("❌ Heavy-Duty Boots interaction incorrect");
+    }
   }
 
   return {
@@ -187,7 +238,11 @@ export function testStickyWebGrounding(): {
   passed: boolean;
   output: string;
 } {
-  console.log("\n=== TEST: Sticky Web Grounding ===");
+  const verbose = isVerboseMode();
+
+  if (verbose) {
+    console.log("\n=== TEST: Sticky Web Grounding ===");
+  }
 
   const galvantula = createTestPokemon(
     "Galvantula",
@@ -210,15 +265,19 @@ export function testStickyWebGrounding(): {
   const grounded = appliesStickyWeb(galvantula);
   const flying = appliesStickyWeb(charizard);
 
-  console.log("  Grounded target affected:", grounded);
-  console.log("  Flying target affected:", flying);
+  if (verbose) {
+    console.log("  Grounded target affected:", grounded);
+    console.log("  Flying target affected:", flying);
+  }
 
   const passed = grounded && !flying;
 
-  if (passed) {
-    console.log("✅ Sticky Web only lowers Speed of grounded Pokemon");
-  } else {
-    console.log("❌ Sticky Web grounding logic incorrect");
+  if (verbose) {
+    if (passed) {
+      console.log("✅ Sticky Web only lowers Speed of grounded Pokemon");
+    } else {
+      console.log("❌ Sticky Web grounding logic incorrect");
+    }
   }
 
   return {
@@ -232,6 +291,7 @@ export function runHazardTests(): {
   passedTests: number;
   results: Array<{ name: string; passed: boolean; output: string }>;
 } {
+  const verbose = isVerboseMode();
   const results = [];
 
   results.push({ name: "Stealth Rock Damage", ...testStealthRockDamage() });
@@ -243,9 +303,12 @@ export function runHazardTests(): {
   const passedTests = results.filter((r) => r.passed).length;
   const totalTests = results.length;
 
-  console.log(`\n======================`);
-  console.log(`Hazard Tests: ${passedTests}/${totalTests} passed`);
-  console.log(`======================`);
+  if (verbose) {
+    console.log("\n=== Hazard Tests ===");
+    console.log(`Hazard Tests: ${passedTests}/${totalTests} passed`);
+  } else {
+    console.log(`Hazard tests: ${passedTests}/${totalTests} passed`);
+  }
 
   return { totalTests, passedTests, results };
 }
