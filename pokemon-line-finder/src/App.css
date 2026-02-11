@@ -293,6 +293,40 @@
   margin-bottom: 10px;
 }
 
+.line-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.line-state-grid {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.line-state-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
 .line-item-risk {
   color: var(--color-warning);
   margin-bottom: 5px;
@@ -309,6 +343,12 @@
 
 .line-item-moves li {
   margin-bottom: 5px;
+}
+
+.compare-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 /* Team builder */

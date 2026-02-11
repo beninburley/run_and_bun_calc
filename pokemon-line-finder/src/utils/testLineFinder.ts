@@ -24,6 +24,7 @@ import { createBattleState } from "../engine/battle";
 import { runHazardTests } from "./testHazards";
 import { runBattleMechanicsTests } from "./testBattleMechanics";
 import { runDataLayerTests } from "./testDataLayer";
+import { runLineSummaryTests } from "./testLineSummary";
 
 interface TestCase {
   name: string;
@@ -104,6 +105,10 @@ const TEST_CASES: TestCase[] = [
 ];
 
 function isVerboseMode(): boolean {
+  if (typeof process === "undefined") {
+    return false;
+  }
+
   const envFlag = process.env?.VERBOSE_TESTS;
   if (envFlag && envFlag !== "0") {
     return true;
@@ -538,42 +543,48 @@ export const tests = {
   validateAILogic,
 };
 
-// Run tests when executed directly
-const results = runLineFinderTests();
-validateDamageCalculations();
-validateAILogic();
-const hazardResults = runHazardTests();
-const mechanicsResults = runBattleMechanicsTests();
-const dataLayerResults = runDataLayerTests();
+// Run tests when executed directly (Node.js only)
+if (typeof process !== "undefined" && process?.argv && process?.exit) {
+  const results = runLineFinderTests();
+  validateDamageCalculations();
+  validateAILogic();
+  const hazardResults = runHazardTests();
+  const mechanicsResults = runBattleMechanicsTests();
+  const dataLayerResults = runDataLayerTests();
+  const lineSummaryResults = runLineSummaryTests();
 
-console.log("\nCondensed Summary");
-console.log(
-  `Line Finder: ${results.filter((r) => r.passed).length}/${results.length}`,
-);
-console.log(
-  `Mechanics: ${mechanicsResults.passedTests}/${mechanicsResults.totalTests}`,
-);
-console.log(
-  `Hazards: ${hazardResults.passedTests}/${hazardResults.totalTests}`,
-);
-console.log(
-  `Data Layer: ${dataLayerResults.passedTests}/${dataLayerResults.totalTests}`,
-);
+  console.log("\nCondensed Summary");
+  console.log(
+    `Line Finder: ${results.filter((r) => r.passed).length}/${results.length}`,
+  );
+  console.log(
+    `Mechanics: ${mechanicsResults.passedTests}/${mechanicsResults.totalTests}`,
+  );
+  console.log(
+    `Hazards: ${hazardResults.passedTests}/${hazardResults.totalTests}`,
+  );
+  console.log(
+    `Data Layer: ${dataLayerResults.passedTests}/${dataLayerResults.totalTests}`,
+  );
+  console.log(
+    `Line Summary: ${lineSummaryResults.passedTests}/${lineSummaryResults.totalTests}`,
+  );
 
-// Exit with appropriate code for CI/CD (only in Node.js, not browser)
-if (typeof process !== "undefined" && process.exit) {
   const failedCount = results.filter((r) => !r.passed).length;
   const failedHazards = hazardResults.totalTests - hazardResults.passedTests;
   const failedMechanics =
     mechanicsResults.totalTests - mechanicsResults.passedTests;
   const failedDataLayer =
     dataLayerResults.totalTests - dataLayerResults.passedTests;
+  const failedLineSummary =
+    lineSummaryResults.totalTests - lineSummaryResults.passedTests;
 
   if (
     failedCount > 0 ||
     failedHazards > 0 ||
     failedMechanics > 0 ||
-    failedDataLayer > 0
+    failedDataLayer > 0 ||
+    failedLineSummary > 0
   ) {
     process.exit(1);
   } else {

@@ -21,6 +21,12 @@ import {
   copyToClipboard,
 } from "./utils/teamImportExport";
 import { trainerCategories, getTrainerById } from "./data/trainers";
+import {
+  getLineFinalState,
+  getHazardSummary,
+  getFieldEffectSummary,
+  getStatusSummary,
+} from "./utils/lineSummary";
 
 type TabType = "scenarios" | "tests" | "teambuilder";
 
@@ -32,6 +38,10 @@ function App() {
     "battle1",
   );
   const [testOutput, setTestOutput] = useState<string>("");
+  const [searchMode, setSearchMode] = useState<"worst-case" | "probabilistic">(
+    "worst-case",
+  );
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
 
   // Team builder state
   const [pokemonSearch, setPokemonSearch] = useState<string>("");
@@ -59,6 +69,7 @@ function App() {
   const runLineFinder = () => {
     setIsSearching(true);
     setLines([]);
+    setSelectedLineIds([]);
 
     // Use setTimeout to allow UI to update
     setTimeout(() => {
@@ -97,6 +108,15 @@ function App() {
           ...DEFAULT_SEARCH_OPTIONS,
           maxLines: 5,
           maxDepth: 10,
+          searchMode,
+          allowAccuracyDependence:
+            searchMode === "probabilistic"
+              ? true
+              : DEFAULT_SEARCH_OPTIONS.allowAccuracyDependence,
+          minSuccessProbability:
+            searchMode === "probabilistic"
+              ? 0
+              : DEFAULT_SEARCH_OPTIONS.minSuccessProbability,
         });
 
         setLines(foundLines);
@@ -234,6 +254,22 @@ function App() {
       `✅ Loaded mock team: ${battle.playerTeam.map((p) => p.species).join(", ")}`,
     );
   };
+
+  const toggleLineSelection = (lineId: string) => {
+    setSelectedLineIds((prev) => {
+      if (prev.includes(lineId)) {
+        return prev.filter((id) => id !== lineId);
+      }
+      if (prev.length >= 2) {
+        return prev;
+      }
+      return [...prev, lineId];
+    });
+  };
+
+  const selectedLines = lines.filter((line) =>
+    selectedLineIds.includes(line.id),
+  );
 
   return (
     <div className="App">
@@ -399,6 +435,28 @@ function App() {
               </label>
             </div>
 
+            <div className="form-group mt-20">
+              <label className="form-label">Search mode:</label>
+              <label className="radio-label" style={{ marginRight: "15px" }}>
+                <input
+                  type="radio"
+                  value="worst-case"
+                  checked={searchMode === "worst-case"}
+                  onChange={() => setSearchMode("worst-case")}
+                />
+                Worst-case (guaranteed)
+              </label>
+              <label className="radio-label">
+                <input
+                  type="radio"
+                  value="probabilistic"
+                  checked={searchMode === "probabilistic"}
+                  onChange={() => setSearchMode("probabilistic")}
+                />
+                Probabilistic (RNG allowed)
+              </label>
+            </div>
+
             <button
               onClick={runLineFinder}
               disabled={isSearching}
@@ -434,72 +492,248 @@ function App() {
                 Found {lines.length} Viable Line{lines.length !== 1 ? "s" : ""}
               </h2>
 
-              {lines.map((line, _index) => (
-                <div
-                  key={line.id}
-                  className="line-item"
-                  style={{
-                    backgroundColor: line.guaranteedSuccess
-                      ? "var(--color-success-bg)"
-                      : "var(--color-warning-bg)",
-                  }}
-                >
-                  <h3>
-                    Line {_index + 1}
-                    {line.guaranteedSuccess && " ✅ (Guaranteed)"}
-                    {!line.guaranteedSuccess &&
-                      ` (${line.successProbability.toFixed(1)}% success)`}
-                  </h3>
+              {lines.map((line, _index) => {
+                const finalState = getLineFinalState(line);
+                const statusSummary = finalState
+                  ? getStatusSummary(finalState)
+                  : null;
+                const fieldSummary = finalState
+                  ? getFieldEffectSummary(finalState)
+                  : null;
+                const playerHazards = finalState
+                  ? getHazardSummary(finalState, "player")
+                  : [];
+                const opponentHazards = finalState
+                  ? getHazardSummary(finalState, "opponent")
+                  : [];
 
-                  <div className="mb-10">
-                    <strong>Risk Level:</strong>{" "}
-                    {line.overallRisk.toUpperCase()}
-                    {" | "}
-                    <strong>Turns:</strong> {line.turns.length}
-                    {" | "}
-                    <strong>Casualties:</strong>{" "}
-                    {line.playerCasualties.length === 0
-                      ? "None"
-                      : line.playerCasualties.join(", ")}
-                  </div>
-
-                  {line.requiresCrits && (
-                    <div className="line-item-risk mb-5">
-                      ⚠️ Requires critical hits
+                return (
+                  <div
+                    key={line.id}
+                    className="line-item"
+                    style={{
+                      backgroundColor: line.guaranteedSuccess
+                        ? "var(--color-success-bg)"
+                        : "var(--color-warning-bg)",
+                    }}
+                  >
+                    <div className="line-header">
+                      <h3>
+                        Line {_index + 1}
+                        {line.guaranteedSuccess && " ✅ (Guaranteed)"}
+                        {!line.guaranteedSuccess &&
+                          ` (${line.successProbability.toFixed(1)}% success)`}
+                      </h3>
+                      <label className="compare-toggle">
+                        <input
+                          type="checkbox"
+                          checked={selectedLineIds.includes(line.id)}
+                          onChange={() => toggleLineSelection(line.id)}
+                          disabled={
+                            !selectedLineIds.includes(line.id) &&
+                            selectedLineIds.length >= 2
+                          }
+                        />
+                        Compare
+                      </label>
                     </div>
-                  )}
-                  {line.requiresHits && (
-                    <div className="line-item-risk mb-5">
-                      ⚠️ Requires moves to hit (accuracy dependent)
+
+                    <div className="mb-10">
+                      <strong>Risk Level:</strong>{" "}
+                      {line.overallRisk.toUpperCase()}
+                      {" | "}
+                      <strong>Turns:</strong> {line.turns.length}
+                      {" | "}
+                      <strong>Casualties:</strong>{" "}
+                      {line.playerCasualties.length === 0
+                        ? "None"
+                        : line.playerCasualties.join(", ")}
                     </div>
-                  )}
 
-                  <div className="mt-10">
-                    <strong>Strategy:</strong>
-                    <ol className="mt-5">
-                      {line.explanation.map((step, i) => (
-                        <li key={i} className="mb-5">
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
+                    {line.requiresCrits && (
+                      <div className="line-item-risk mb-5">
+                        ⚠️ Requires critical hits
+                      </div>
+                    )}
+                    {line.requiresHits && (
+                      <div className="line-item-risk mb-5">
+                        ⚠️ Requires moves to hit (accuracy dependent)
+                      </div>
+                    )}
 
-                  {line.keyRisks.length > 0 && (
-                    <div className="card-highlight mt-10">
-                      <strong>Key Risks:</strong>
-                      <ul className="mt-5">
-                        {line.keyRisks.map((risk, i) => (
-                          <li key={i}>
-                            {risk.description} ({risk.probability.toFixed(1)}% -{" "}
-                            {risk.impact})
+                    {finalState && statusSummary && (
+                      <div className="line-state-grid mt-10">
+                        <div>
+                          <strong>Status:</strong>
+                          <div className="line-state-row">
+                            <span>Player: {statusSummary.playerStatus}</span>
+                            <span>
+                              Opponent: {statusSummary.opponentStatus}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <strong>Hazards:</strong>
+                          <div className="line-state-row">
+                            <span>
+                              Player:{" "}
+                              {playerHazards.length
+                                ? playerHazards.join(", ")
+                                : "None"}
+                            </span>
+                            <span>
+                              Opponent:{" "}
+                              {opponentHazards.length
+                                ? opponentHazards.join(", ")
+                                : "None"}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <strong>Field Effects:</strong>
+                          <div className="line-state-row">
+                            <span>
+                              Global:{" "}
+                              {fieldSummary?.global.length
+                                ? fieldSummary.global.join(", ")
+                                : "None"}
+                            </span>
+                          </div>
+                          <div className="line-state-row">
+                            <span>
+                              Player:{" "}
+                              {fieldSummary?.playerSide.length
+                                ? fieldSummary.playerSide.join(", ")
+                                : "None"}
+                            </span>
+                            <span>
+                              Opponent:{" "}
+                              {fieldSummary?.opponentSide.length
+                                ? fieldSummary.opponentSide.join(", ")
+                                : "None"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-10">
+                      <strong>Strategy:</strong>
+                      <ol className="mt-5">
+                        {line.explanation.map((step, i) => (
+                          <li key={i} className="mb-5">
+                            {step}
                           </li>
                         ))}
-                      </ul>
+                      </ol>
                     </div>
-                  )}
+
+                    {line.keyRisks.length > 0 && (
+                      <div className="card-highlight mt-10">
+                        <strong>Key Risks:</strong>
+                        <ul className="mt-5">
+                          {line.keyRisks.map((risk, i) => (
+                            <li key={i}>
+                              {risk.description} ({risk.probability.toFixed(1)}%
+                              - {risk.impact})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {selectedLines.length > 0 && (
+                <div className="panel mt-30">
+                  <h3>Line Comparison</h3>
+                  <p className="text-small text-secondary">
+                    Select up to two lines to compare their end-state.
+                  </p>
+                  <div className="compare-grid">
+                    {selectedLines.map((line) => {
+                      const finalState = getLineFinalState(line);
+                      const statusSummary = finalState
+                        ? getStatusSummary(finalState)
+                        : null;
+                      const fieldSummary = finalState
+                        ? getFieldEffectSummary(finalState)
+                        : null;
+                      const playerHazards = finalState
+                        ? getHazardSummary(finalState, "player")
+                        : [];
+                      const opponentHazards = finalState
+                        ? getHazardSummary(finalState, "opponent")
+                        : [];
+
+                      return (
+                        <div key={line.id} className="card">
+                          <h4>
+                            {line.guaranteedSuccess
+                              ? "Guaranteed Line"
+                              : `${line.successProbability.toFixed(1)}% Line`}
+                          </h4>
+                          <div className="text-small">
+                            <strong>Turns:</strong> {line.turns.length}
+                          </div>
+                          <div className="text-small">
+                            <strong>Casualties:</strong>{" "}
+                            {line.playerCasualties.length
+                              ? line.playerCasualties.join(", ")
+                              : "None"}
+                          </div>
+                          {statusSummary && (
+                            <div className="text-small mt-10">
+                              <strong>Status:</strong>
+                              <div>Player: {statusSummary.playerStatus}</div>
+                              <div>
+                                Opponent: {statusSummary.opponentStatus}
+                              </div>
+                            </div>
+                          )}
+                          <div className="text-small mt-10">
+                            <strong>Hazards:</strong>
+                            <div>
+                              Player:{" "}
+                              {playerHazards.length
+                                ? playerHazards.join(", ")
+                                : "None"}
+                            </div>
+                            <div>
+                              Opponent:{" "}
+                              {opponentHazards.length
+                                ? opponentHazards.join(", ")
+                                : "None"}
+                            </div>
+                          </div>
+                          <div className="text-small mt-10">
+                            <strong>Field Effects:</strong>
+                            <div>
+                              Global:{" "}
+                              {fieldSummary?.global.length
+                                ? fieldSummary.global.join(", ")
+                                : "None"}
+                            </div>
+                            <div>
+                              Player:{" "}
+                              {fieldSummary?.playerSide.length
+                                ? fieldSummary.playerSide.join(", ")
+                                : "None"}
+                            </div>
+                            <div>
+                              Opponent:{" "}
+                              {fieldSummary?.opponentSide.length
+                                ? fieldSummary.opponentSide.join(", ")
+                                : "None"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
 
