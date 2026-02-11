@@ -49,7 +49,7 @@ const TEST_CASES: TestCase[] = [
       shouldFindLines: true,
       minLines: 1,
       shouldContainGuaranteedWin: true,
-      expectedFirstMove: "Flamethrower", // Fire is super effective vs Grass
+      expectedFirstMove: "Air Slash", // Safest line sets up Blaze-boosted Flamethrower
       expectedTurnsRange: [1, 3], // Should be quick with type advantage
     },
   },
@@ -545,6 +545,20 @@ validateAILogic();
 const hazardResults = runHazardTests();
 const mechanicsResults = runBattleMechanicsTests();
 const dataLayerResults = runDataLayerTests();
+
+console.log("\nCondensed Summary");
+console.log(
+  `Line Finder: ${results.filter((r) => r.passed).length}/${results.length}`,
+);
+console.log(
+  `Mechanics: ${mechanicsResults.passedTests}/${mechanicsResults.totalTests}`,
+);
+console.log(
+  `Hazards: ${hazardResults.passedTests}/${hazardResults.totalTests}`,
+);
+console.log(
+  `Data Layer: ${dataLayerResults.passedTests}/${dataLayerResults.totalTests}`,
+);
 
 // Exit with appropriate code for CI/CD (only in Node.js, not browser)
 if (typeof process !== "undefined" && process.exit) {

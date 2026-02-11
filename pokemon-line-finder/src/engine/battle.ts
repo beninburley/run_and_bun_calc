@@ -23,7 +23,12 @@ import {
 
 import { calculateAIDecision } from "./ai";
 
-import { getItem, getItemStatMultiplier } from "../data/items";
+import {
+  getItem,
+  getItemStatMultiplier,
+  getLifeOrbRecoil,
+} from "../data/items";
+import { canBeStatChanged } from "../data/abilities";
 
 import {
   calculateWeatherDamage,
@@ -275,6 +280,100 @@ function processSwitch(
   return { newActive: targetMon, switchDamage };
 }
 
+function resolveItemActionDefaults(
+  action: Extract<BattleAction, { type: "item" }>,
+): Required<
+  Pick<
+    Extract<BattleAction, { type: "item" }>,
+    "effect" | "value" | "stat" | "stages"
+  >
+> {
+  if (action.effect) {
+    return {
+      effect: action.effect,
+      value: action.value ?? 0,
+      stat: action.stat ?? "atk",
+      stages: action.stages ?? 2,
+    };
+  }
+
+  const name = action.itemName.toLowerCase();
+  if (name.includes("x attack")) {
+    return { effect: "stat-boost", value: 0, stat: "atk", stages: 2 };
+  }
+  if (name.includes("x defend")) {
+    return { effect: "stat-boost", value: 0, stat: "def", stages: 2 };
+  }
+  if (name.includes("x sp. atk") || name.includes("x special")) {
+    return { effect: "stat-boost", value: 0, stat: "spa", stages: 2 };
+  }
+  if (name.includes("x sp. def")) {
+    return { effect: "stat-boost", value: 0, stat: "spd", stages: 2 };
+  }
+  if (name.includes("x speed")) {
+    return { effect: "stat-boost", value: 0, stat: "spe", stages: 2 };
+  }
+
+  if (name.includes("max potion")) {
+    return { effect: "heal", value: 9999, stat: "atk", stages: 0 };
+  }
+  if (name.includes("hyper potion")) {
+    return { effect: "heal", value: 200, stat: "atk", stages: 0 };
+  }
+  if (name.includes("super potion")) {
+    return { effect: "heal", value: 60, stat: "atk", stages: 0 };
+  }
+  if (name.includes("potion")) {
+    return { effect: "heal", value: 20, stat: "atk", stages: 0 };
+  }
+  if (name.includes("full restore")) {
+    return { effect: "status-cure", value: 9999, stat: "atk", stages: 0 };
+  }
+
+  return { effect: "heal", value: 20, stat: "atk", stages: 0 };
+}
+
+function processItemAction(
+  action: Extract<BattleAction, { type: "item" }>,
+  team: PokemonInstance[],
+  active: PokemonInstance,
+): void {
+  const { effect, value, stat, stages } = resolveItemActionDefaults(action);
+  const targetIndex = action.targetIndex ?? team.findIndex((p) => p === active);
+  const target = targetIndex >= 0 ? team[targetIndex] : active;
+
+  if (effect === "heal") {
+    const healAmount = value === 9999 ? target.stats.hp : value;
+    target.currentHp = Math.min(target.stats.hp, target.currentHp + healAmount);
+    return;
+  }
+
+  if (effect === "status-cure") {
+    target.status = "healthy";
+    target.sleepTurnsRemaining = 0;
+    target.toxicCounter = 0;
+    if (value === 9999) {
+      target.currentHp = target.stats.hp;
+    }
+    return;
+  }
+
+  if (effect === "stat-boost") {
+    target.statModifiers[stat] = clampStatStage(
+      target.statModifiers[stat] + stages,
+    );
+  }
+}
+
+function applySwitchInAbility(
+  entrant: PokemonInstance,
+  opponent: PokemonInstance,
+): void {
+  if (entrant.ability === "Intimidate") {
+    applyStatChanges(opponent, { atk: -1 });
+  }
+}
+
 /**
  * Process a move action and calculate damage and effects
  */
@@ -422,6 +521,18 @@ function applyStatChanges(
     }
 
     const key = stat as keyof StatModifiers;
+    const statKey = key as keyof PokemonInstance["stats"];
+    if (
+      amount < 0 &&
+      (statKey === "atk" ||
+        statKey === "def" ||
+        statKey === "spa" ||
+        statKey === "spd" ||
+        statKey === "spe") &&
+      !canBeStatChanged(target, statKey)
+    ) {
+      return;
+    }
     target.statModifiers[key] = clampStatStage(
       target.statModifiers[key] + amount,
     );
@@ -997,6 +1108,8 @@ export function simulateTurn(
     }
 
     if (action.type === "switch") {
+      attacker.lockedMoveIndex = undefined;
+      attacker.lockedMoveReason = undefined;
       const hazards = isPlayer
         ? newState.playerHazards
         : newState.opponentHazards;
@@ -1005,11 +1118,23 @@ export function simulateTurn(
 
       if (isPlayer) {
         newState.playerActive = switchResult.newActive;
+        applySwitchInAbility(newState.playerActive, newState.opponentActive);
         playerHasMoved = true;
       } else {
         newState.opponentActive = switchResult.newActive;
+        applySwitchInAbility(newState.opponentActive, newState.playerActive);
         opponentHasMoved = true;
       }
+    } else if (action.type === "item") {
+      const team = isPlayer ? newState.playerTeam : newState.opponentTeam;
+      const active = isPlayer ? newState.playerActive : newState.opponentActive;
+      processItemAction(action, team, active);
+      if (isPlayer) {
+        playerHasMoved = true;
+      } else {
+        opponentHasMoved = true;
+      }
+      return;
     } else if (action.type === "move") {
       const move = attacker.moves[action.moveIndex];
 
@@ -1070,6 +1195,16 @@ export function simulateTurn(
         0,
         attacker.currentHp - moveResult.attackerRecoil,
       );
+
+      const lifeOrbRecoil = getLifeOrbRecoil(getItem(attacker.item));
+      if (
+        moveResult.moveHit &&
+        lifeOrbRecoil > 0 &&
+        move.category !== "status"
+      ) {
+        const recoil = Math.floor((attacker.stats.hp * lifeOrbRecoil) / 100);
+        attacker.currentHp = Math.max(0, attacker.currentHp - recoil);
+      }
 
       if (
         moveResult.moveHit &&
@@ -1159,6 +1294,12 @@ export function simulateTurn(
         attacker.rechargeTurns = 1;
         attacker.lockedMoveIndex = action.moveIndex;
         attacker.lockedMoveReason = "recharge";
+      }
+
+      const item = getItem(attacker.item);
+      if (item?.isChoiceItem && moveResult.moveHit) {
+        attacker.lockedMoveIndex = action.moveIndex;
+        attacker.lockedMoveReason = "choice";
       }
     }
   };

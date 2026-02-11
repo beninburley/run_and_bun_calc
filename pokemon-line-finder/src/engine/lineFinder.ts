@@ -333,7 +333,21 @@ function generatePlayerActions(
     });
   }
 
-  // TODO: Item actions if allowed
+  if (_options.allowItems) {
+    actions.push({
+      type: "item",
+      itemName: "Super Potion",
+      effect: "heal",
+      value: 60,
+    });
+    actions.push({
+      type: "item",
+      itemName: "X Attack",
+      effect: "stat-boost",
+      stat: "atk",
+      stages: 2,
+    });
+  }
 
   return actions;
 }

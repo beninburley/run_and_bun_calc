@@ -548,6 +548,328 @@ function testSpeedTieWorstCase(): TestResult {
   };
 }
 
+function testIntimidateSwitchIn(): TestResult {
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const lead = createTestPokemon(
+    "Eevee",
+    50,
+    { hp: 55, atk: 55, def: 50, spa: 45, spd: 65, spe: 55 },
+    ["Normal"],
+    [splash],
+  );
+  const intimidator = createTestPokemon(
+    "Gyarados",
+    50,
+    { hp: 95, atk: 125, def: 79, spa: 60, spd: 100, spe: 81 },
+    ["Water", "Flying"],
+    [splash],
+    "Intimidate",
+  );
+  const opponent = createTestPokemon(
+    "Machop",
+    50,
+    { hp: 70, atk: 80, def: 50, spa: 35, spd: 35, spe: 35 },
+    ["Fighting"],
+    [splash],
+  );
+
+  const state = createBattleState([lead, intimidator], [opponent]);
+  const outcome = simulateTurn(
+    { type: "switch", targetIndex: 1, targetName: intimidator.species },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const atkStage = outcome.resultingState.opponentActive.statModifiers.atk;
+  const passed = atkStage === -1;
+
+  return {
+    name: "Intimidate switch-in",
+    passed,
+    output: `Opponent atk stage=${atkStage}`,
+  };
+}
+
+function testIntimidateBlockedByClearBody(): TestResult {
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const lead = createTestPokemon(
+    "Eevee",
+    50,
+    { hp: 55, atk: 55, def: 50, spa: 45, spd: 65, spe: 55 },
+    ["Normal"],
+    [splash],
+  );
+  const intimidator = createTestPokemon(
+    "Arbok",
+    50,
+    { hp: 60, atk: 85, def: 69, spa: 65, spd: 79, spe: 80 },
+    ["Poison"],
+    [splash],
+    "Intimidate",
+  );
+  const opponent = createTestPokemon(
+    "Beldum",
+    50,
+    { hp: 40, atk: 55, def: 80, spa: 35, spd: 60, spe: 30 },
+    ["Steel", "Psychic"],
+    [splash],
+    "Clear Body",
+  );
+
+  const state = createBattleState([lead, intimidator], [opponent]);
+  const outcome = simulateTurn(
+    { type: "switch", targetIndex: 1, targetName: intimidator.species },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const atkStage = outcome.resultingState.opponentActive.statModifiers.atk;
+  const passed = atkStage === 0;
+
+  return {
+    name: "Intimidate blocked by Clear Body",
+    passed,
+    output: `Opponent atk stage=${atkStage}`,
+  };
+}
+
+function testFocusSashSurvival(): TestResult {
+  const nuke = createMove("Giga Impact", "Normal", "physical", 150);
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const player = createTestPokemon(
+    "Tauros",
+    50,
+    { hp: 75, atk: 100, def: 95, spa: 40, spd: 70, spe: 110 },
+    ["Normal"],
+    [nuke],
+  );
+  const opponent = createTestPokemon(
+    "Abra",
+    50,
+    { hp: 25, atk: 20, def: 15, spa: 105, spd: 55, spe: 90 },
+    ["Psychic"],
+    [splash],
+    "Overgrow",
+    "Focus Sash",
+  );
+
+  const state = createBattleState(...basicTeams(player, opponent));
+  const outcome = simulateTurn(
+    { type: "move", moveIndex: 0, moveName: "Giga Impact" },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const remaining = outcome.resultingState.opponentActive.currentHp;
+  const passed = remaining === 1;
+
+  return {
+    name: "Focus Sash survival",
+    passed,
+    output: `Opponent HP=${remaining}`,
+  };
+}
+
+function testChoiceLock(): TestResult {
+  const tackle = createMove("Tackle", "Normal", "physical", 40);
+  const smash = createMove("Smash", "Normal", "physical", 120);
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const player = createTestPokemon(
+    "Heracross",
+    50,
+    { hp: 80, atk: 125, def: 75, spa: 40, spd: 95, spe: 85 },
+    ["Bug", "Fighting"],
+    [tackle, smash],
+    "Overgrow",
+    "Choice Band",
+  );
+  const opponent = createTestPokemon(
+    "Snorlax",
+    50,
+    { hp: 160, atk: 110, def: 65, spa: 65, spd: 110, spe: 30 },
+    ["Normal"],
+    [splash],
+  );
+
+  const state = createBattleState(...basicTeams(player, opponent));
+  const first = simulateTurn(
+    { type: "move", moveIndex: 0, moveName: "Tackle" },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const afterFirst = first.resultingState.opponentActive.currentHp;
+  const damageFirst = opponent.stats.hp - afterFirst;
+
+  const second = simulateTurn(
+    { type: "move", moveIndex: 1, moveName: "Smash" },
+    first.resultingState,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const afterSecond = second.resultingState.opponentActive.currentHp;
+  const damageSecond = afterFirst - afterSecond;
+
+  const passed = damageSecond === damageFirst;
+
+  return {
+    name: "Choice lock enforced",
+    passed,
+    output: `Damage first=${damageFirst}, second=${damageSecond}`,
+  };
+}
+
+function testLifeOrbRecoil(): TestResult {
+  const tackle = createMove("Tackle", "Normal", "physical", 40);
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const player = createTestPokemon(
+    "Eevee",
+    50,
+    { hp: 55, atk: 55, def: 50, spa: 45, spd: 65, spe: 55 },
+    ["Normal"],
+    [tackle],
+    "Overgrow",
+    "Life Orb",
+  );
+  const opponent = createTestPokemon(
+    "Magikarp",
+    50,
+    { hp: 20, atk: 10, def: 55, spa: 15, spd: 20, spe: 80 },
+    ["Water"],
+    [splash],
+  );
+
+  const startHp = player.stats.hp;
+  const recoil = Math.floor(startHp * 0.1);
+
+  const state = createBattleState(...basicTeams(player, opponent));
+  const outcome = simulateTurn(
+    { type: "move", moveIndex: 0, moveName: "Tackle" },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const endHp = outcome.resultingState.playerActive.currentHp;
+  const passed = endHp === startHp - recoil;
+
+  return {
+    name: "Life Orb recoil",
+    passed,
+    output: `HP ${startHp} -> ${endHp} (recoil ${recoil})`,
+  };
+}
+
+function testMoldBreakerIgnoresLevitate(): TestResult {
+  const quake = createMove("Earthquake", "Ground", "physical", 100);
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const player = createTestPokemon(
+    "Excadrill",
+    50,
+    { hp: 110, atk: 135, def: 60, spa: 50, spd: 65, spe: 88 },
+    ["Ground", "Steel"],
+    [quake],
+    "Mold Breaker",
+  );
+  const opponent = createTestPokemon(
+    "Rotom",
+    50,
+    { hp: 50, atk: 50, def: 77, spa: 95, spd: 77, spe: 91 },
+    ["Electric", "Ghost"],
+    [splash],
+    "Levitate",
+  );
+
+  const state = createBattleState(...basicTeams(player, opponent));
+  const outcome = simulateTurn(
+    { type: "move", moveIndex: 0, moveName: "Earthquake" },
+    state,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+
+  const remaining = outcome.resultingState.opponentActive.currentHp;
+  const passed = remaining < opponent.stats.hp;
+
+  return {
+    name: "Mold Breaker ignores Levitate",
+    passed,
+    output: `Opponent HP=${remaining}/${opponent.stats.hp}`,
+  };
+}
+
+function testGutsBoostedDamage(): TestResult {
+  const tackle = createMove("Tackle", "Normal", "physical", 40);
+  const splash = createMove("Splash", "Normal", "status", 0);
+
+  const gutsUser = createTestPokemon(
+    "Ursaring",
+    50,
+    { hp: 90, atk: 130, def: 75, spa: 75, spd: 75, spe: 55 },
+    ["Normal"],
+    [tackle],
+    "Guts",
+  );
+  gutsUser.status = "burn";
+
+  const normalUser = createTestPokemon(
+    "Ursaring",
+    50,
+    { hp: 90, atk: 130, def: 75, spa: 75, spd: 75, spe: 55 },
+    ["Normal"],
+    [tackle],
+    "Overgrow",
+  );
+  normalUser.status = "burn";
+
+  const opponent = createTestPokemon(
+    "Pidgey",
+    50,
+    { hp: 40, atk: 45, def: 40, spa: 35, spd: 35, spe: 56 },
+    ["Normal", "Flying"],
+    [splash],
+  );
+
+  const gutsState = createBattleState(...basicTeams(gutsUser, opponent));
+  const gutsOutcome = simulateTurn(
+    { type: "move", moveIndex: 0, moveName: "Tackle" },
+    gutsState,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+  const gutsDamage =
+    opponent.stats.hp - gutsOutcome.resultingState.opponentActive.currentHp;
+
+  const normalState = createBattleState(...basicTeams(normalUser, opponent));
+  const normalOutcome = simulateTurn(
+    { type: "move", moveIndex: 0, moveName: "Tackle" },
+    normalState,
+    "worst-case",
+    { type: "move", moveIndex: 0, moveName: "Splash" },
+  );
+  const normalDamage =
+    opponent.stats.hp - normalOutcome.resultingState.opponentActive.currentHp;
+
+  const passed = gutsDamage > normalDamage;
+
+  return {
+    name: "Guts damage boost",
+    passed,
+    output: `Damage guts=${gutsDamage}, normal=${normalDamage}`,
+  };
+}
+
 export function runBattleMechanicsTests(): {
   totalTests: number;
   passedTests: number;
@@ -563,6 +885,13 @@ export function runBattleMechanicsTests(): {
     testEndOfTurnItems,
     testMultiTurnMoves,
     testSpeedTieWorstCase,
+    testIntimidateSwitchIn,
+    testIntimidateBlockedByClearBody,
+    testFocusSashSurvival,
+    testChoiceLock,
+    testLifeOrbRecoil,
+    testMoldBreakerIgnoresLevitate,
+    testGutsBoostedDamage,
   ];
 
   const results = tests.map((fn) => {

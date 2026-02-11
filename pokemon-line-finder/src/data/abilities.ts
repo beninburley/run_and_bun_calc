@@ -59,6 +59,14 @@ export interface DamageContext {
   moveCategory: MoveCategory;
   attackerTypes: PokemonType[];
   defenderTypes: PokemonType[];
+  attackerStatus?:
+    | "healthy"
+    | "burn"
+    | "freeze"
+    | "paralysis"
+    | "poison"
+    | "badly-poison"
+    | "sleep";
   attackerHPPercent: number;
   defenderHPPercent: number;
   weather?: string;
@@ -278,9 +286,13 @@ export const abilities: Record<string, AbilityEffect> = {
   Guts: {
     description: "Boosts Attack by 50% when afflicted with a status condition.",
     timing: ["on-damage-calc"],
-    damageMultiplier: (_context) => {
-      // Would need to check if attacker has status condition in actual implementation
-      // This is handled separately in damage calculator for burn
+    damageMultiplier: (context) => {
+      if (context.moveCategory !== "physical") {
+        return 1;
+      }
+      if (context.attackerStatus && context.attackerStatus !== "healthy") {
+        return 1.5;
+      }
       return 1;
     },
   },
@@ -508,6 +520,7 @@ export function getAbilityDamageMultiplier(
   attackerAbility: string,
   defenderAbility: string,
   context: DamageContext,
+  options?: { ignoreDefenderAbility?: boolean },
 ): number {
   let multiplier = 1;
 
@@ -519,11 +532,18 @@ export function getAbilityDamageMultiplier(
 
   // Check defender ability (defensive)
   const defenderAbilityData = getAbility(defenderAbility);
-  if (defenderAbilityData?.damageMultiplier) {
+  if (
+    !options?.ignoreDefenderAbility &&
+    defenderAbilityData?.damageMultiplier
+  ) {
     multiplier *= defenderAbilityData.damageMultiplier(context);
   }
 
   return multiplier;
+}
+
+export function ignoresDefenderAbilities(attackerAbility: string): boolean {
+  return ["Mold Breaker", "Teravolt", "Turboblaze"].includes(attackerAbility);
 }
 
 export function isTypeImmune(

@@ -284,6 +284,10 @@ export interface ItemAction {
   type: "item";
   itemName: string;
   targetIndex?: number; // For items used on specific Pokemon
+  effect?: "heal" | "stat-boost" | "status-cure" | "revive";
+  value?: number;
+  stat?: keyof StatModifiers;
+  stages?: number;
 }
 
 export interface RechargeAction {

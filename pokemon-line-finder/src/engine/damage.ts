@@ -28,6 +28,7 @@ import {
 import {
   getAbilityDamageMultiplier,
   isTypeImmune,
+  ignoresDefenderAbilities,
   preventsOHKO,
   type DamageContext,
 } from "../data/abilities";
@@ -137,7 +138,8 @@ export function calculateDamage(
   }
 
   // Check for type immunity from abilities (e.g., Levitate vs Ground)
-  if (isTypeImmune(defender.ability, move.type)) {
+  const ignoreDefenderAbility = ignoresDefenderAbilities(attacker.ability);
+  if (!ignoreDefenderAbility && isTypeImmune(defender.ability, move.type)) {
     return 0;
   }
 
@@ -314,6 +316,7 @@ export function calculateDamage(
     moveCategory: move.category,
     attackerTypes: attacker.types,
     defenderTypes: defender.types,
+    attackerStatus: attacker.status,
     attackerHPPercent,
     defenderHPPercent,
     weather: battleState.weather,
@@ -324,6 +327,7 @@ export function calculateDamage(
     attacker.ability,
     defender.ability,
     abilityContext,
+    { ignoreDefenderAbility },
   );
   modifiers *= abilityMultiplier;
 
@@ -348,6 +352,7 @@ export function calculateDamage(
 
   // Sturdy / Focus Sash - prevents OHKO when at full HP
   if (
+    !ignoreDefenderAbility &&
     preventsOHKO(defender.ability) &&
     defender.currentHp === defender.stats.hp
   ) {
